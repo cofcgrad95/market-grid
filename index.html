@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#03070b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MKT Live" />
+  <meta name="application-name" content="MKT Live" />
+  <title>MKT Live</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <style>
+    :root {
+      --bg0: #03070b;
+      --bg1: #07131c;
+      --bg2: #0b1a24;
+      --line: rgba(0, 220, 255, 0.12);
+      --cyan: #00f0ff;
+      --cyan-dim: rgba(0, 240, 255, 0.55);
+      --mint: #3effc5;
+      --red: #ff4d6d;
+      --amber: #ffb000;
+      --text: #e8fbff;
+      --muted: rgba(180, 220, 230, 0.7);
+      --faint: rgba(170, 220, 230, 0.45);
+      --card: rgba(7, 20, 29, 0.92);
+      --mono: ui-monospace, "SFMono-Regular", "Menlo", "Cascadia Code", "Consolas", monospace;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      min-height: 100dvh;
+      background:
+        radial-gradient(1200px 700px at 10% -10%, rgba(0, 80, 110, 0.28), transparent 50%),
+        radial-gradient(900px 600px at 110% 0%, rgba(80, 0, 60, 0.16), transparent 45%),
+        var(--bg0);
+      color: var(--text);
+      font-family: var(--mono);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse at center, #000 40%, transparent 85%);
+      opacity: 0.35;
+      z-index: 0;
+    }
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding-top: max(14px, env(safe-area-inset-top, 0px));
+      padding-right: max(14px, env(safe-area-inset-right, 0px));
+      padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
+      padding-left: max(14px, env(safe-area-inset-left, 0px));
+    }
+    header.top {
+      display: flex;
+      flex-direction: column;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 11px;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(18px, 5.6vw, 22px);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .clock {
+      text-align: left;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+    .clock .now {
+      display: block;
+      color: var(--text);
+      font-size: 16px;
+      margin-top: 4px;
+    }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      color: var(--cyan);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .badge.warn { border-color: rgba(255, 176, 0, 0.45); color: var(--amber); }
+    .badge.bad { border-color: rgba(255, 77, 109, 0.45); color: var(--red); }
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid rgba(0, 220, 255, 0.18);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      position: relative;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 200, 255, 0.04);
+    }
+    .panel::before, .panel::after {
+      content: "";
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid rgba(0, 230, 255, 0.45);
+      pointer-events: none;
+    }
+    .panel::before { top: 7px; left: 7px; border-right: 0; border-bottom: 0; }
+    .panel::after { bottom: 7px; right: 7px; border-left: 0; border-top: 0; }
+    .avg-label {
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--cyan-dim);
+    }
+    .avg-num {
+      font-size: clamp(28px, 10vw, 52px);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      line-height: 1.1;
+      margin: 8px 0 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .avg-delta { font-size: 15px; margin-bottom: 10px; }
+    .up { color: var(--mint); }
+    .down { color: var(--red); }
+    .flat { color: var(--muted); }
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+      margin-top: 8px;
+    }
+    .metric dt {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--faint);
+      margin: 0 0 4px;
+    }
+    .metric dd {
+      margin: 0;
+      font-size: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric dd small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+    canvas.chart, canvas.spark {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 10px;
+      background: #04080d;
+    }
+    canvas.spark { border-radius: 8px; }
+    .section-h {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin: 8px 0 10px;
+      flex-wrap: wrap;
+    }
+    .section-h h2 {
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--cyan);
+    }
+    .section-h p { margin: 0; font-size: 11px; color: var(--faint); }
+    .tickers {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .tk-card {
+      background: var(--card);
+      border: 1px solid rgba(0, 220, 255, 0.16);
+      border-radius: 12px;
+      padding: 12px 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+      text-align: left;
+      color: inherit;
+      font-family: inherit;
+      width: 100%;
+      transition: border-color 0.2s ease;
+    }
+    .tk-card.selected { border-color: rgba(0, 240, 255, 0.65); box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.2); }
+    .tk-card.flash-up { animation: flashUp 0.5s ease-out; }
+    .tk-card.flash-down { animation: flashDown 0.5s ease-out; }
+    .tk-head, .tk-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .tk-sym {
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .tk-name { font-size: 10px; color: var(--faint); letter-spacing: 0.04em; }
+    .tk-price {
+      font-size: 22px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      margin: 4px 0 0;
+    }
+    .tk-chg { font-size: 13px; font-variant-numeric: tabular-nums; }
+    .tk-rows {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 10px;
+      margin-top: 6px;
+      font-size: 10px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .tk-rows .k { color: var(--faint); letter-spacing: 0.08em; text-transform: uppercase; margin-right: 6px; }
+    .tk-quote { margin-top: 4px; font-size: 10px; color: var(--faint); letter-spacing: 0.04em; }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid rgba(170, 220, 230, 0.2);
+      color: var(--muted);
+      border-radius: 6px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 16px;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+    .icon-btn:hover { border-color: var(--red); color: var(--red); background: rgba(255, 77, 109, 0.08); }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #3a4a52;
+      box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.0);
+    }
+    .st-live .dot { background: var(--mint); box-shadow: 0 0 8px var(--mint); animation: pulse 1.8s ease-out infinite; }
+    .st-live { color: var(--mint); }
+    .st-connecting .dot, .st-stale .dot, .st-closed .dot { background: var(--amber); }
+    .st-connecting, .st-stale, .st-closed { color: var(--amber); }
+    .st-unavailable .dot, .st-error .dot { background: var(--red); }
+    .st-unavailable, .st-error { color: var(--red); }
+    .add-row, .ref-row {
+      display: flex;
+      flex-direction: column;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: stretch;
+      margin-bottom: 12px;
+    }
+    label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
+    input[type="text"], input[type="password"] {
+      background: #050b12;
+      border: 1px solid rgba(0, 220, 255, 0.28);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 100%;
+    }
+    button {
+      font-family: var(--mono);
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--cyan);
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      border-radius: 8px;
+      padding: 8px 14px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    button:hover { background: rgba(0, 240, 255, 0.2); }
+    button.quiet { border-color: rgba(170, 220, 230, 0.25); color: var(--muted); background: transparent; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .add-msg { font-size: 11px; color: var(--amber); min-height: 1em; }
+    .add-msg.ok { color: var(--mint); }
+    .modal-back {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.62);
+      padding: max(16px, env(safe-area-inset-top)) 14px 20px;
+      overflow: auto;
+    }
+    .modal-back.open { display: block; }
+    .modal {
+      max-width: 560px;
+      margin: 40px auto;
+      padding: 22px 20px;
+    }
+    footer {
+      margin-top: 22px;
+      color: var(--faint);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+    footer strong { color: var(--muted); font-weight: 600; }
+    footer a { color: var(--cyan); }
+    @keyframes flashUp { from { background: rgba(62, 255, 197, 0.28); } to { background: var(--card); } }
+    @keyframes flashDown { from { background: rgba(255, 77, 109, 0.28); } to { background: var(--card); } }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(62, 255, 197, 0.55); }
+      70% { box-shadow: 0 0 0 7px rgba(62, 255, 197, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(62, 255, 197, 0); }
+    }
+    @media (max-width: 559px) {
+      .panel { padding: 14px 14px; }
+      .avg-num { margin: 6px 0 4px; }
+    }
+    @media (min-width: 560px) {
+      .tickers { grid-template-columns: repeat(2, 1fr); }
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .add-row, .ref-row { flex-direction: row; align-items: end; }
+      .add-row > div, .ref-row > div { width: auto; flex: 1; }
+      .add-row button, .ref-row button { width: auto; }
+    }
+    @media (min-width: 980px) {
+      header.top {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
+      }
+      .clock { text-align: right; }
+      .hero { grid-template-columns: 1.15fr 1fr; gap: 16px; }
+      .tickers { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tk-card.flash-up, .tk-card.flash-down, .st-live .dot { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="eyebrow">Signal // US session</div>
+        <h1>Market Grid</h1>
+        <div class="header-actions" style="margin-top:8px;">
+          <span class="badge" id="feedBadge">Connecting quotes</span>
+          <span class="badge" id="sessionBadge">Session —</span>
+          <span class="badge warn">Display only — never trades</span>
+          <button type="button" class="quiet" id="openSettings">Settings</button>
+        </div>
+      </div>
+      <div class="clock">
+        Pacific Time
+        <span class="now" id="clock">—</span>
+      </div>
+    </header>
+
+    <div class="hero">
+      <div class="panel">
+        <div class="avg-label" id="heroLabel">S&amp;P 500</div>
+        <div class="avg-num" id="heroPrice">—</div>
+        <div class="avg-delta flat" id="heroDelta">Waiting for live quotes</div>
+        <dl class="metrics">
+          <div class="metric">
+            <dt>VIX</dt>
+            <dd id="heroVix">—</dd>
+          </div>
+          <div class="metric">
+            <dt>U.S. Dollar (DXY)</dt>
+            <dd id="heroDxy">—</dd>
+          </div>
+          <div class="metric">
+            <dt>Tickers live</dt>
+            <dd id="liveCount">0 / 0</dd>
+          </div>
+          <div class="metric">
+            <dt>Last quote</dt>
+            <dd id="lastQuoteTime">—</dd>
+          </div>
+        </dl>
+      </div>
+      <div class="panel" style="padding:10px 12px 12px;">
+        <div class="section-h" style="margin:6px 8px 8px;">
+          <h2 id="focusTitle">Intraday — SPX</h2>
+          <p id="chartCaption">Waiting for candles</p>
+        </div>
+        <canvas class="chart" id="chart" width="1200" height="320" aria-label="Intraday chart"></canvas>
+      </div>
+    </div>
+
+    <div class="section-h">
+      <h2>Watchlist</h2>
+      <p id="watchNote">Today, pre/after hours, week, month, and YTD. Tap a tile for the large chart.</p>
+    </div>
+    <form class="add-row" id="addForm">
+      <div>
+        <label for="addInput">Add ticker</label>
+        <input id="addInput" type="text" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. AMD or IWM" maxlength="16" />
+      </div>
+      <button type="submit" id="addBtn">Add</button>
+      <button type="button" class="quiet" id="resetList">Reset defaults</button>
+    </form>
+    <div class="add-msg" id="addMsg"></div>
+    <div class="tickers" id="tickers"></div>
+
+    <footer>
+      <strong>Display only.</strong> This page never places orders and never connects to a brokerage account.
+      Live quotes, official SPX / VIX / DXY values, and premarket / after-hours moves come from CNBC’s public quote feed (unofficial; if it fails, that ticker shows an error — prices are never invented).
+      Intraday charts and week / month / YTD changes use a free Twelve Data key that you paste in Settings; it stays in this browser only.
+      Times are Pacific Time (PT).
+      On iPhone, open this page in Safari, tap Share, then Add to Home Screen.
+    </footer>
+  </div>
+
+  <div class="modal-back" id="settingsBack" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="panel modal">
+      <div class="section-h">
+        <h2 id="settingsTitle">Settings</h2>
+        <p>Stored only on this device</p>
+      </div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.55;margin:0 0 14px;">
+        Charts and week / month / YTD need a free Twelve Data Basic key.
+        Sign up at <a href="https://twelvedata.com/register" target="_blank" rel="noopener">twelvedata.com/register</a> (no credit card).
+        The free plan is 8 credits per minute and 800 per day. Live prices still work without a key.
+        The key is saved in <code>localStorage</code> and is sent only to Twelve Data’s official API from your browser.
+      </p>
+      <form id="keyForm" class="ref-row">
+        <div style="flex:1;">
+          <label for="keyInput">Twelve Data API key</label>
+          <input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="Paste key" />
+        </div>
+        <button type="submit">Save key</button>
+        <button type="button" class="quiet" id="clearKey">Remove key</button>
+      </form>
+      <p class="add-msg" id="keyMsg" style="margin-top:8px;"></p>
+      <p style="font-size:11px;color:var(--faint);margin:12px 0 16px;" id="creditNote"></p>
+      <button type="button" class="quiet" id="closeSettings">Close</button>
+    </div>
+  </div>
+
+
+  <script>
+  (function () {
+    "use strict";
+
+    var TZ = "America/Los_Angeles";
+    var ET = "America/New_York";
+    var LS_WATCH = "mktLive.watchlist.v1";
+    var LS_KEY = "mktLive.twelveDataKey";
+    var LS_CREDITS = "mktLive.tdCredits.v1";
+    var LS_SELECTED = "mktLive.selected.v1";
+    var POLL_MS = 15000;
+    var STALE_REG_MS = 90000;
+    var STALE_EXT_MS = 5 * 60 * 1000;
+    var TD_PER_MIN = 8;
+    var TD_PER_DAY = 800;
+    var CHART_REFRESH_MS = 10 * 60 * 1000;
+
+    var DEFAULTS = [
+      { id: "SPX", cnbc: ".SPX", tdSymbols: ["SPX"], name: "S&P 500 Index", kind: "index", alertPct: 2, chartProxy: { symbol: "SPY", label: "SPY ETF" } },
+      { id: "SPY", cnbc: "SPY", tdSymbols: ["SPY"], name: "SPDR S&P 500 ETF", kind: "etf", alertPct: 2, chartProxy: null },
+      { id: "QQQ", cnbc: "QQQ", tdSymbols: ["QQQ"], name: "Invesco QQQ Trust", kind: "etf", alertPct: 2, chartProxy: null },
+      { id: "AAPL", cnbc: "AAPL", tdSymbols: ["AAPL"], name: "Apple", kind: "stock", alertPct: 5, chartProxy: null },
+      { id: "MSFT", cnbc: "MSFT", tdSymbols: ["MSFT"], name: "Microsoft", kind: "stock", alertPct: 5, chartProxy: null },
+      { id: "NVDA", cnbc: "NVDA", tdSymbols: ["NVDA"], name: "NVIDIA", kind: "stock", alertPct: 5, chartProxy: null },
+      { id: "AMZN", cnbc: "AMZN", tdSymbols: ["AMZN"], name: "Amazon", kind: "stock", alertPct: 5, chartProxy: null },
+      { id: "GOOGL", cnbc: "GOOGL", tdSymbols: ["GOOGL"], name: "Alphabet", kind: "stock", alertPct: 5, chartProxy: null },
+      { id: "META", cnbc: "META", tdSymbols: ["META"], name: "Meta Platforms", kind: "stock", alertPct: 5, chartProxy: null },
+      { id: "TSLA", cnbc: "TSLA", tdSymbols: ["TSLA"], name: "Tesla", kind: "stock", alertPct: 5, chartProxy: null },
+      { id: "VIX", cnbc: ".VIX", tdSymbols: ["VIX"], name: "CBOE Volatility Index", kind: "index", alertPct: 10, chartProxy: { symbol: "VIXY", label: "VIXY ETF" } },
+      { id: "DXY", cnbc: ".DXY", tdSymbols: ["DXY", "DX"], name: "U.S. Dollar Index", kind: "index", alertPct: 2, chartProxy: { symbol: "UUP", label: "UUP ETF" } }
+    ];
+
+    var el = {
+      clock: document.getElementById("clock"),
+      feedBadge: document.getElementById("feedBadge"),
+      sessionBadge: document.getElementById("sessionBadge"),
+      heroLabel: document.getElementById("heroLabel"),
+      heroPrice: document.getElementById("heroPrice"),
+      heroDelta: document.getElementById("heroDelta"),
+      heroVix: document.getElementById("heroVix"),
+      heroDxy: document.getElementById("heroDxy"),
+      liveCount: document.getElementById("liveCount"),
+      lastQuoteTime: document.getElementById("lastQuoteTime"),
+      focusTitle: document.getElementById("focusTitle"),
+      chartCaption: document.getElementById("chartCaption"),
+      chart: document.getElementById("chart"),
+      tickers: document.getElementById("tickers"),
+      addForm: document.getElementById("addForm"),
+      addInput: document.getElementById("addInput"),
+      addBtn: document.getElementById("addBtn"),
+      addMsg: document.getElementById("addMsg"),
+      resetList: document.getElementById("resetList"),
+      openSettings: document.getElementById("openSettings"),
+      closeSettings: document.getElementById("closeSettings"),
+      settingsBack: document.getElementById("settingsBack"),
+      keyForm: document.getElementById("keyForm"),
+      keyInput: document.getElementById("keyInput"),
+      clearKey: document.getElementById("clearKey"),
+      keyMsg: document.getElementById("keyMsg"),
+      creditNote: document.getElementById("creditNote")
+    };
+
+    var watchlist = [];
+    var quotes = {};
+    var charts = {};
+    var selectedId = "SPX";
+    var apiKey = "";
+    var pollTimer = null;
+    var pollError = null;
+    var lastPollAt = null;
+    var adding = false;
+    var tdQueue = [];
+    var tdUsed = [];
+    var tdDay = { date: "", count: 0 };
+    var lastChartDraw = 0;
+
+    function cloneDefaults() {
+      return DEFAULTS.map(function (t) { return Object.assign({}, t, { chartProxy: t.chartProxy ? Object.assign({}, t.chartProxy) : null, tdSymbols: t.tdSymbols.slice() }); });
+    }
+
+    function loadWatchlist() {
+      try {
+        var raw = localStorage.getItem(LS_WATCH);
+        if (!raw) return cloneDefaults();
+        var parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || !parsed.length) return cloneDefaults();
+        return parsed.map(normalizeItem).filter(Boolean);
+      } catch (e) {
+        return cloneDefaults();
+      }
+    }
+
+    function normalizeItem(t) {
+      if (!t || !t.id) return null;
+      var id = String(t.id).toUpperCase();
+      var def = DEFAULTS.filter(function (d) { return d.id === id; })[0];
+      var kind = t.kind || (def && def.kind) || "stock";
+      var alertPct = Number(t.alertPct);
+      if (!Number.isFinite(alertPct)) {
+        alertPct = def ? def.alertPct : (kind === "stock" ? 5 : 2);
+      }
+      return {
+        id: id,
+        cnbc: String(t.cnbc || (def && def.cnbc) || id),
+        tdSymbols: Array.isArray(t.tdSymbols) && t.tdSymbols.length ? t.tdSymbols.map(String) : (def ? def.tdSymbols.slice() : [id]),
+        name: t.name || (def && def.name) || id,
+        kind: kind,
+        alertPct: alertPct,
+        chartProxy: t.chartProxy || (def ? def.chartProxy : null)
+      };
+    }
+
+    function saveWatchlist() {
+      try { localStorage.setItem(LS_WATCH, JSON.stringify(watchlist)); } catch (e) {}
+    }
+
+    function loadKey() {
+      try { return (localStorage.getItem(LS_KEY) || "").trim(); } catch (e) { return ""; }
+    }
+
+    function saveKey(k) {
+      try {
+        if (k) localStorage.setItem(LS_KEY, k);
+        else localStorage.removeItem(LS_KEY);
+      } catch (e) {}
+    }
+
+    function loadCredits() {
+      try {
+        var raw = localStorage.getItem(LS_CREDITS);
+        if (!raw) return;
+        var p = JSON.parse(raw);
+        if (p && p.date) tdDay = { date: String(p.date), count: Number(p.count) || 0 };
+      } catch (e) {}
+    }
+
+    function saveCredits() {
+      try { localStorage.setItem(LS_CREDITS, JSON.stringify(tdDay)); } catch (e) {}
+    }
+
+    function utcDate() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function ensureCreditDay() {
+      var d = utcDate();
+      if (tdDay.date !== d) tdDay = { date: d, count: 0 };
+    }
+
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function parseNum(v) {
+      if (v == null || v === "") return null;
+      if (typeof v === "number") return Number.isFinite(v) ? v : null;
+      var s = String(v).trim().replace(/,/g, "").replace(/%/g, "").replace(/^\+/, "").replace(/^−/, "-").replace(/^–/, "-");
+      if (!s || s === "--" || s === "—" || s === "N/A") return null;
+      var n = Number(s);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function parsePct(v) {
+      return parseNum(v);
+    }
+
+    function parseTime(v) {
+      if (!v) return null;
+      var s = String(v).trim();
+      // CNBC: 2026-11-23T12:57:00.029-0500  (no colon in offset)
+      var m = s.match(/([+-]\d{2})(\d{2})$/);
+      if (m) s = s.slice(0, -5) + m[1] + ":" + m[2];
+      var d = new Date(s);
+      return isNaN(d.getTime()) ? null : d.getTime();
+    }
+
+    function fmtPrice(n, id) {
+      if (!Number.isFinite(n)) return "—";
+      var digits = 2;
+      if (id === "DXY" || (Math.abs(n) < 50 && Math.abs(n) >= 1 && id !== "VIX")) digits = 3;
+      if (Math.abs(n) < 1) digits = 4;
+      return Number(n).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    }
+
+    function signedPct(n, digits) {
+      if (!Number.isFinite(n)) return "—";
+      if (digits == null) digits = 2;
+      var body = Math.abs(n).toFixed(digits) + "%";
+      if (n > 0) return "+" + body;
+      if (n < 0) return "\u2212" + body;
+      return body;
+    }
+
+    function pctClass(n) {
+      if (!Number.isFinite(n)) return "flat";
+      if (n > 0.0000001) return "up";
+      if (n < -0.0000001) return "down";
+      return "flat";
+    }
+
+    function fmtPT(d, withSeconds, withDate) {
+      if (!(d instanceof Date)) d = new Date(d);
+      if (isNaN(d.getTime())) return "—";
+      var opts = { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true };
+      if (withSeconds) opts.second = "2-digit";
+      if (withDate) {
+        opts.weekday = "short";
+        opts.month = "short";
+        opts.day = "numeric";
+        opts.year = "numeric";
+      }
+      return new Intl.DateTimeFormat("en-US", opts).format(d) + " PT";
+    }
+
+    function etYmd(ms) {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: ET, year: "numeric", month: "2-digit", day: "2-digit"
+      }).format(new Date(ms));
+    }
+
+    function etWallToMs(datetime) {
+      var raw = String(datetime).trim();
+      var datePart, timePart;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        datePart = raw;
+        timePart = "16:00:00";
+      } else {
+        var bits = raw.replace("T", " ").split(/\s+/);
+        datePart = bits[0];
+        timePart = bits[1] || "00:00:00";
+      }
+      var d = datePart.split("-").map(Number);
+      var tm = timePart.split(":").map(Number);
+      if (d.length < 3 || tm.length < 2) return null;
+      var desired = Date.UTC(d[0], d[1] - 1, d[2], tm[0], tm[1], tm[2] || 0);
+      var ms = desired;
+      var i;
+      for (i = 0; i < 3; i++) {
+        var parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: ET, year: "numeric", month: "2-digit", day: "2-digit",
+          hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+        }).formatToParts(new Date(ms));
+        function part(type) {
+          var found = parts.filter(function (p) { return p.type === type; })[0];
+          return found ? Number(found.value) : 0;
+        }
+        var hour = part("hour");
+        if (hour === 24) hour = 0;
+        var wall = Date.UTC(part("year"), part("month") - 1, part("day"), hour, part("minute"), part("second"));
+        ms = ms + (desired - wall);
+      }
+      return Number.isFinite(ms) ? ms : null;
+    }
+
+    function findItem(id) {
+      for (var i = 0; i < watchlist.length; i++) if (watchlist[i].id === id) return watchlist[i];
+      return null;
+    }
+
+    function sessionOf(status) {
+      var s = String(status || "").toUpperCase();
+      if (s === "REG_MKT" || s === "REGULAR" || s === "OPEN") return "regular";
+      if (s.indexOf("PRE") >= 0) return "pre";
+      if (s.indexOf("POST") >= 0 || s.indexOf("AFTER") >= 0 || s.indexOf("AH") >= 0 || s.indexOf("EXTENDED") >= 0) return "after";
+      if (s.indexOf("CLOSE") >= 0 || s.indexOf("HOLIDAY") >= 0 || s === "CLOSED") return "closed";
+      return "unknown";
+    }
+
+    function sessionLabel(sess) {
+      if (sess === "regular") return "Regular session";
+      if (sess === "pre") return "Premarket";
+      if (sess === "after") return "After hours";
+      if (sess === "closed") return "Market closed";
+      return "Session unknown";
+    }
+
+    function tickerStatus(q, now) {
+      if (!q) return { cls: "st-connecting", label: "Waiting" };
+      if (q.error && !Number.isFinite(q.last)) return { cls: "st-error", label: "Error" };
+      if (!Number.isFinite(q.last)) return { cls: "st-unavailable", label: "No data" };
+      var sess = sessionOf(q.marketStatus);
+      if (sess === "closed") return { cls: "st-closed", label: "Closed" };
+      var age = q.time ? (now - q.time) : Infinity;
+      var limit = (sess === "regular") ? STALE_REG_MS : STALE_EXT_MS;
+      if (q.time && age > limit) return { cls: "st-stale", label: "Stale" };
+      if (q.error) return { cls: "st-stale", label: "Stale" };
+      return { cls: "st-live", label: "Live" };
+    }
+
+    function parseCnbcQuote(raw) {
+      if (!raw || Number(raw.code) !== 0) return null;
+      var last = parseNum(raw.last);
+      if (!Number.isFinite(last)) return null;
+      var ext = raw.ExtendedMktQuote || null;
+      var extType = ext && ext.type ? String(ext.type).toUpperCase() : "";
+      var extLast = ext ? parseNum(ext.last) : null;
+      var extPct = ext ? parsePct(ext.change_pct) : null;
+      var extTime = ext ? parseTime(ext.last_time) : null;
+      return {
+        last: last,
+        change: parseNum(raw.change),
+        changePct: parsePct(raw.change_pct),
+        open: parseNum(raw.open),
+        high: parseNum(raw.high),
+        low: parseNum(raw.low),
+        previousClose: parseNum(raw.previous_day_closing),
+        time: parseTime(raw.last_time) || Date.now(),
+        name: raw.name || raw.shortName || raw.onAirName || "",
+        type: raw.type || "",
+        subType: raw.subType || "",
+        marketStatus: raw.curmktstatus || "",
+        source: "CNBC",
+        realTime: raw.realTime === true || raw.realTime === "true",
+        extType: extType,
+        extLast: extLast,
+        extPct: extPct,
+        extTime: extTime,
+        error: null
+      };
+    }
+
+    function cnbcUrl(symbols) {
+      var joined = symbols.join("|");
+      return "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=" +
+        encodeURIComponent(joined) +
+        "&requestMethod=quick&exthrs=1&noform=1&partnerId=2&output=json";
+    }
+
+    function fetchQuotes() {
+      if (!watchlist.length) {
+        pollError = null;
+        render();
+        return Promise.resolve();
+      }
+      var symbols = watchlist.map(function (t) { return t.cnbc; });
+      return fetch(cnbcUrl(symbols), { cache: "no-store" }).then(function (res) {
+        if (!res.ok) throw new Error("CNBC quote HTTP " + res.status);
+        return res.json();
+      }).then(function (data) {
+        var list = data && data.FormattedQuoteResult && data.FormattedQuoteResult.FormattedQuote;
+        if (!Array.isArray(list)) throw new Error("CNBC quote: unexpected response");
+        var bySym = {};
+        list.forEach(function (q) {
+          if (q && q.symbol) bySym[String(q.symbol).toUpperCase()] = q;
+        });
+        var now = Date.now();
+        var any = false;
+        watchlist.forEach(function (t) {
+          var raw = bySym[String(t.cnbc).toUpperCase()] || bySym[t.id];
+          var parsed = parseCnbcQuote(raw);
+          var prev = quotes[t.id];
+          if (parsed) {
+            if (parsed.name) t.name = parsed.name;
+            if (prev && Number.isFinite(prev.last) && parsed.last !== prev.last) {
+              parsed.flash = parsed.last > prev.last ? "up" : "down";
+            }
+            quotes[t.id] = parsed;
+            any = true;
+            appendLivePoint(t.id, parsed.last, parsed.time);
+          } else {
+            if (prev && Number.isFinite(prev.last)) {
+              prev.error = "Quote missing from CNBC";
+              prev.staleAt = now;
+            } else {
+              quotes[t.id] = { last: null, error: raw && Number(raw.code) !== 0 ? "Symbol not found on CNBC" : "No quote from CNBC", time: null, source: "CNBC" };
+            }
+          }
+        });
+        if (!any) throw new Error("CNBC returned no usable quotes");
+        pollError = null;
+        lastPollAt = now;
+        document.body.setAttribute("data-quotes", "ready");
+        render();
+      }).catch(function (err) {
+        pollError = (err && err.message) ? err.message : "CNBC quote request failed";
+        var id;
+        for (id in quotes) {
+          if (quotes[id] && Number.isFinite(quotes[id].last)) quotes[id].error = pollError;
+        }
+        render();
+      });
+    }
+
+    function appendLivePoint(id, price, t) {
+      if (!Number.isFinite(price) || !Number.isFinite(t)) return;
+      var c = charts[id];
+      if (!c) {
+        charts[id] = c = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false };
+      }
+      if (!c.points) c.points = [];
+      var last = c.points[c.points.length - 1];
+      if (last && Math.abs(last.t - t) < 1000) {
+        last.close = price;
+        return;
+      }
+      if (last && t < last.t) return;
+      c.points.push({ t: t, close: price, live: true });
+    }
+
+    /* ---------- Twelve Data credit queue ---------- */
+    function creditsAvailable() {
+      var now = Date.now();
+      tdUsed = tdUsed.filter(function (t) { return now - t < 60000; });
+      ensureCreditDay();
+      var minuteLeft = Math.max(0, TD_PER_MIN - tdUsed.length);
+      var dayLeft = Math.max(0, TD_PER_DAY - tdDay.count);
+      return Math.min(minuteLeft, dayLeft);
+    }
+
+    function consumeCredits(n) {
+      var i;
+      var now = Date.now();
+      for (i = 0; i < n; i++) tdUsed.push(now);
+      ensureCreditDay();
+      tdDay.count += n;
+      saveCredits();
+    }
+
+    function enqueueTd(credits, fn, label) {
+      tdQueue.push({ credits: credits, fn: fn, label: label || "" });
+      pumpTd();
+    }
+
+    var pumpTimer = null;
+    function pumpTd() {
+      if (!apiKey) return;
+      ensureCreditDay();
+      if (tdDay.count >= TD_PER_DAY) {
+        renderCredits();
+        return;
+      }
+      while (tdQueue.length) {
+        var job = tdQueue[0];
+        if (creditsAvailable() < job.credits) break;
+        tdQueue.shift();
+        consumeCredits(job.credits);
+        try { job.fn(); } catch (e) {}
+      }
+      renderCredits();
+      if (tdQueue.length && !pumpTimer) {
+        pumpTimer = setTimeout(function () {
+          pumpTimer = null;
+          pumpTd();
+        }, 8000);
+      }
+    }
+
+    function tdGet(pathAndQuery) {
+      var url = "https://api.twelvedata.com/" + pathAndQuery + (pathAndQuery.indexOf("?") >= 0 ? "&" : "?") + "apikey=" + encodeURIComponent(apiKey);
+      return fetch(url, { cache: "no-store" }).then(function (res) {
+        return res.json().then(function (body) {
+          return { ok: res.ok, status: res.status, body: body };
+        }).catch(function () {
+          throw new Error("Twelve Data HTTP " + res.status);
+        });
+      });
+    }
+
+    function tdError(body, fallback) {
+      if (!body) return fallback;
+      if (body.status === "error" || body.code) {
+        return String(body.message || body.code || fallback);
+      }
+      return null;
+    }
+
+    function parseTdSeries(body) {
+      var err = tdError(body, "Twelve Data series failed");
+      if (err) return { error: err, values: [] };
+      var vals = body && body.values;
+      if (!Array.isArray(vals) || !vals.length) return { error: "Twelve Data returned no bars", values: [] };
+      var points = [];
+      vals.forEach(function (v) {
+        var close = parseNum(v.close);
+        if (!Number.isFinite(close)) return;
+        var t = null;
+        if (v.datetime) {
+          t = etWallToMs(String(v.datetime));
+        }
+        if (!t) return;
+        points.push({
+          t: t,
+          open: parseNum(v.open),
+          high: parseNum(v.high),
+          low: parseNum(v.low),
+          close: close,
+          volume: parseNum(v.volume)
+        });
+      });
+      points.sort(function (a, b) { return a.t - b.t; });
+      if (!points.length) return { error: "Twelve Data bars could not be parsed", values: [] };
+      return { error: null, values: points };
+    }
+
+    function requestSeriesFor(item, force) {
+      if (!apiKey || !item) return;
+      var c = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+      if (c.loading && !force) return;
+      if (c.loaded && !force && c.loadedAt && Date.now() - c.loadedAt < CHART_REFRESH_MS) return;
+      c.loading = true;
+      enqueueTd(1, function () { loadIntraday(item); }, item.id + " intraday");
+      enqueueTd(1, function () { loadDaily(item); }, item.id + " daily");
+    }
+
+    function trySymbols(item) {
+      var list = (item.tdSymbols || []).slice();
+      if (item.chartProxy && item.chartProxy.symbol && list.indexOf(item.chartProxy.symbol) === -1) {
+        /* proxy is a fallback, not tried first */
+      }
+      return list;
+    }
+
+    function loadIntraday(item, symbolIndex, usingProxy) {
+      var symbols = trySymbols(item);
+      var idx = symbolIndex || 0;
+      var symbol = usingProxy ? item.chartProxy.symbol : symbols[idx];
+      if (!symbol) {
+        if (!usingProxy && item.chartProxy && item.chartProxy.symbol) {
+          loadIntraday(item, 0, true);
+          return;
+        }
+        var c = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+        c.loading = false;
+        c.error = c.error || "No Twelve Data symbol worked for the chart";
+        c.loaded = true;
+        c.loadedAt = Date.now();
+        render();
+        return;
+      }
+      var q = "time_series?symbol=" + encodeURIComponent(symbol) +
+        "&interval=5min&outputsize=200&timezone=America/New_York&format=JSON";
+      tdGet(q).then(function (r) {
+        var parsed = parseTdSeries(r.body);
+        if (parsed.error) {
+          if (!usingProxy && idx + 1 < symbols.length) {
+            enqueueTd(1, function () { loadIntraday(item, idx + 1, false); }, item.id + " retry");
+            return;
+          }
+          if (!usingProxy && item.chartProxy && item.chartProxy.symbol) {
+            enqueueTd(1, function () { loadIntraday(item, 0, true); }, item.id + " proxy");
+            return;
+          }
+          var c0 = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+          c0.error = parsed.error;
+          c0.loading = false;
+          c0.loaded = true;
+          c0.loadedAt = Date.now();
+          render();
+          return;
+        }
+        var c1 = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+        var liveTail = (c1.points || []).filter(function (p) { return p.live; });
+        c1.points = parsed.values.map(function (p) {
+          return { t: p.t, open: p.open, high: p.high, low: p.low, close: p.close, live: false };
+        });
+        liveTail.forEach(function (p) { appendLivePoint(item.id, p.close, p.t); });
+        c1.source = "Twelve Data 5-min";
+        c1.proxy = !!usingProxy;
+        c1.proxyLabel = usingProxy && item.chartProxy ? item.chartProxy.label : null;
+        c1.error = null;
+        c1.loading = false;
+        c1.loaded = true;
+        c1.loadedAt = Date.now();
+        c1.tdSymbolUsed = symbol;
+        render();
+      }).catch(function (err) {
+        var c2 = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+        c2.error = (err && err.message) ? err.message : "Twelve Data request failed";
+        c2.loading = false;
+        c2.loaded = true;
+        c2.loadedAt = Date.now();
+        render();
+      });
+    }
+
+    function loadDaily(item, symbolIndex, usingProxy) {
+      var symbols = trySymbols(item);
+      var idx = symbolIndex || 0;
+      var symbol = usingProxy ? item.chartProxy.symbol : symbols[idx];
+      if (!symbol) return;
+      var q = "time_series?symbol=" + encodeURIComponent(symbol) +
+        "&interval=1day&outputsize=320&timezone=America/New_York&format=JSON";
+      tdGet(q).then(function (r) {
+        var parsed = parseTdSeries(r.body);
+        if (parsed.error) {
+          if (!usingProxy && idx + 1 < symbols.length) {
+            enqueueTd(1, function () { loadDaily(item, idx + 1, false); }, item.id + " daily retry");
+            return;
+          }
+          if (!usingProxy && item.chartProxy && item.chartProxy.symbol) {
+            enqueueTd(1, function () { loadDaily(item, 0, true); }, item.id + " daily proxy");
+            return;
+          }
+          var c0 = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+          c0.dailyError = parsed.error;
+          render();
+          return;
+        }
+        var c1 = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+        c1.daily = parsed.values;
+        c1.dailyError = null;
+        c1.dailyProxy = !!usingProxy;
+        render();
+      }).catch(function (err) {
+        var c2 = charts[item.id] || (charts[item.id] = { points: [], daily: [], source: null, proxy: false, error: null, loaded: false });
+        c2.dailyError = (err && err.message) ? err.message : "Twelve Data daily request failed";
+        render();
+      });
+    }
+
+    function rangeReturns(item) {
+      var c = charts[item.id];
+      var q = quotes[item.id];
+      var nowPx = q && Number.isFinite(q.last) ? q.last : null;
+      var out = { week: null, month: null, ytd: null, note: null };
+      if (!apiKey) {
+        out.note = "key";
+        return out;
+      }
+      if (!c || !c.daily || !c.daily.length) {
+        out.note = c && c.dailyError ? "error" : "loading";
+        return out;
+      }
+      if (!Number.isFinite(nowPx)) {
+        var lastBar = c.daily[c.daily.length - 1];
+        nowPx = lastBar && lastBar.close;
+      }
+      if (!Number.isFinite(nowPx)) return out;
+      function pctFrom(close) {
+        if (!Number.isFinite(close) || close === 0) return null;
+        return ((nowPx - close) / close) * 100;
+      }
+      var bars = c.daily;
+      // 5 trading sessions ago: if the last bar is today, use length-6; else length-5
+      var today = etYmd(Date.now());
+      var lastYmd = etYmd(bars[bars.length - 1].t);
+      var offset = lastYmd === today ? 6 : 5;
+      var weekBar = bars.length > offset ? bars[bars.length - 1 - offset] : null;
+      out.week = weekBar ? pctFrom(weekBar.close) : null;
+      var nowParts = today.split("-");
+      var monthStart = nowParts[0] + "-" + nowParts[1] + "-01";
+      var yearStart = nowParts[0] + "-01-01";
+      var prevMonth = null, prevYear = null, i;
+      for (i = 0; i < bars.length; i++) {
+        var ymd = etYmd(bars[i].t);
+        if (ymd < monthStart) prevMonth = bars[i];
+        if (ymd < yearStart) prevYear = bars[i];
+      }
+      out.month = prevMonth ? pctFrom(prevMonth.close) : null;
+      out.ytd = prevYear ? pctFrom(prevYear.close) : null;
+      if (c.dailyProxy && item.chartProxy) out.note = "proxy";
+      return out;
+    }
+
+    function extRows(q) {
+      var pre = { pct: null, label: "Pre" };
+      var ah = { pct: null, label: "AH" };
+      if (!q) return { pre: pre, ah: ah };
+      var typ = q.extType || "";
+      if (typ.indexOf("PRE") >= 0) {
+        pre.pct = q.extPct;
+      } else if (typ.indexOf("POST") >= 0 || typ.indexOf("AFTER") >= 0) {
+        ah.pct = q.extPct;
+      }
+      return { pre: pre, ah: ah };
+    }
+
+    /* ---------- render ---------- */
+    function render() {
+      var now = Date.now();
+      el.clock.textContent = fmtPT(now, true, true);
+      var sess = "unknown";
+      var id;
+      for (id in quotes) {
+        if (quotes[id] && quotes[id].marketStatus) {
+          sess = sessionOf(quotes[id].marketStatus);
+          if (sess !== "unknown") break;
+        }
+      }
+      el.sessionBadge.textContent = sessionLabel(sess);
+      if (sess === "closed") el.sessionBadge.classList.add("warn");
+      else el.sessionBadge.classList.remove("warn");
+
+      var live = 0;
+      watchlist.forEach(function (t) {
+        var st = tickerStatus(quotes[t.id], now);
+        if (st.cls === "st-live") live += 1;
+      });
+      el.liveCount.textContent = live + " / " + watchlist.length;
+      if (pollError && live === 0) {
+        el.feedBadge.textContent = "Quote feed failed";
+        el.feedBadge.className = "badge bad";
+      } else if (live > 0) {
+        el.feedBadge.textContent = "Live quotes";
+        el.feedBadge.className = "badge";
+      } else {
+        el.feedBadge.textContent = "Connecting quotes";
+        el.feedBadge.className = "badge warn";
+      }
+
+      var heroItem = findItem("SPX") || findItem("SPY") || watchlist[0] || null;
+      if (heroItem) {
+        var hq = quotes[heroItem.id];
+        el.heroLabel.textContent = heroItem.id === "SPX" ? "S&P 500" : (heroItem.name || heroItem.id);
+        if (hq && Number.isFinite(hq.last)) {
+          el.heroPrice.textContent = fmtPrice(hq.last, heroItem.id);
+          el.heroDelta.className = "avg-delta " + pctClass(hq.changePct);
+          var deltaTxt = signedPct(hq.changePct);
+          if (Number.isFinite(hq.change)) deltaTxt += "  (" + (hq.change > 0 ? "+" : hq.change < 0 ? "\u2212" : "") + fmtPrice(Math.abs(hq.change), heroItem.id) + ")";
+          var stH = tickerStatus(hq, now);
+          el.heroDelta.textContent = deltaTxt + " today  ·  " + stH.label;
+        } else {
+          el.heroPrice.textContent = "—";
+          el.heroDelta.className = "avg-delta flat";
+          el.heroDelta.textContent = (hq && hq.error) ? hq.error : "Waiting for live quotes";
+        }
+      } else {
+        el.heroLabel.textContent = "Watchlist empty";
+        el.heroPrice.textContent = "—";
+        el.heroDelta.className = "avg-delta flat";
+        el.heroDelta.textContent = "Add a ticker to get started";
+      }
+
+      function sideMetric(target, tid) {
+        var item = findItem(tid);
+        var q = item && quotes[tid];
+        if (!item) {
+          target.innerHTML = "<small>Not on watchlist</small>";
+          return;
+        }
+        if (q && Number.isFinite(q.last)) {
+          target.innerHTML = esc(fmtPrice(q.last, tid)) +
+            " <span class=\"" + pctClass(q.changePct) + "\">" + esc(signedPct(q.changePct)) + "</span>" +
+            "<small>" + esc(tickerStatus(q, now).label) + "</small>";
+        } else {
+          target.innerHTML = "—<small>" + esc((q && q.error) || "No quote") + "</small>";
+        }
+      }
+      sideMetric(el.heroVix, "VIX");
+      sideMetric(el.heroDxy, "DXY");
+      el.lastQuoteTime.textContent = lastPollAt ? fmtPT(lastPollAt, true) : "—";
+
+      renderTickers(now);
+      renderFocusChart();
+      renderCredits();
+    }
+
+    function renderTickers(now) {
+      if (!watchlist.length) {
+        el.tickers.innerHTML = "<p style=\"color:var(--muted);font-size:12px;\">No tickers. Add one above or reset the defaults.</p>";
+        return;
+      }
+      var html = "";
+      watchlist.forEach(function (t) {
+        var q = quotes[t.id];
+        var st = tickerStatus(q, now);
+        var rets = rangeReturns(t);
+        var ext = extRows(q);
+        var selected = t.id === selectedId ? " selected" : "";
+        var flash = q && q.flash ? " flash-" + q.flash : "";
+        if (q) q.flash = null;
+        var price = q && Number.isFinite(q.last) ? fmtPrice(q.last, t.id) : "—";
+        var chg = q && Number.isFinite(q.changePct) ? signedPct(q.changePct) : "—";
+        var src = "No quote yet";
+        if (q && Number.isFinite(q.last) && q.time) src = (q.source || "CNBC") + "  ·  " + fmtPT(q.time, true);
+        else if (q && q.error) src = q.error;
+        function retCell(label, val, note) {
+          var v = "—";
+          if (note === "key") v = "Need key";
+          else if (note === "loading") v = "…";
+          else if (note === "error") v = "Failed";
+          else if (Number.isFinite(val)) v = signedPct(val);
+          var cls = Number.isFinite(val) ? pctClass(val) : "flat";
+          return "<div><span class=\"k\">" + label + "</span><span class=\"" + cls + "\">" + esc(v) + "</span></div>";
+        }
+        html += "<div class=\"tk-card" + selected + flash + "\" data-id=\"" + esc(t.id) + "\" role=\"button\" tabindex=\"0\">";
+        html += "<div class=\"tk-head\"><div><div class=\"tk-sym\">" + esc(t.id) + "</div><div class=\"tk-name\">" + esc(t.name) + "</div></div>";
+        html += "<div style=\"display:flex;align-items:center;gap:8px;\">";
+        html += "<span class=\"status " + st.cls + "\"><span class=\"dot\"></span>" + esc(st.label) + "</span>";
+        html += "<button type=\"button\" class=\"icon-btn\" data-remove=\"" + esc(t.id) + "\" aria-label=\"Remove " + esc(t.id) + "\">×</button>";
+        html += "</div></div>";
+        html += "<div class=\"tk-meta\"><div class=\"tk-price\">" + esc(price) + "</div><div class=\"tk-chg " + pctClass(q && q.changePct) + "\">" + esc(chg) + "</div></div>";
+        html += "<canvas class=\"spark\" data-spark=\"" + esc(t.id) + "\" width=\"400\" height=\"72\" aria-hidden=\"true\"></canvas>";
+        html += "<div class=\"tk-rows\">";
+        html += retCell("Today", q && q.changePct, Number.isFinite(q && q.changePct) ? null : (q && q.error ? "error" : null));
+        html += retCell("Pre", ext.pre.pct, null);
+        html += retCell("AH", ext.ah.pct, null);
+        html += retCell("Week", rets.week, rets.note);
+        html += retCell("Month", rets.month, rets.note);
+        html += retCell("YTD", rets.ytd, rets.note);
+        html += "</div>";
+        html += "<div class=\"tk-quote\">" + esc(src) + (rets.note === "proxy" ? "  ·  longer-term % uses " + esc(t.chartProxy.label) + " proxy" : "") + "</div>";
+        html += "</div>";
+      });
+      el.tickers.innerHTML = html;
+      Array.prototype.forEach.call(el.tickers.querySelectorAll(".tk-card"), function (card) {
+        card.addEventListener("click", function (ev) {
+          if (ev.target && ev.target.getAttribute && ev.target.getAttribute("data-remove")) return;
+          selectTicker(card.getAttribute("data-id"));
+        });
+        card.addEventListener("keydown", function (ev) {
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectTicker(card.getAttribute("data-id")); }
+        });
+      });
+      Array.prototype.forEach.call(el.tickers.querySelectorAll("[data-remove]"), function (btn) {
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          removeTicker(btn.getAttribute("data-remove"));
+        });
+      });
+      Array.prototype.forEach.call(el.tickers.querySelectorAll("canvas[data-spark]"), function (cv) {
+        drawSpark(cv, cv.getAttribute("data-spark"));
+      });
+    }
+
+    function selectTicker(id) {
+      if (!findItem(id)) return;
+      selectedId = id;
+      try { localStorage.setItem(LS_SELECTED, id); } catch (e) {}
+      requestSeriesFor(findItem(id), false);
+      render();
+    }
+
+    function wrapText(ctx, text, maxW) {
+      var words = String(text).split(" ");
+      var lines = [];
+      var cur = "";
+      words.forEach(function (word) {
+        var trial = cur ? cur + " " + word : word;
+        if (ctx.measureText(trial).width <= maxW) cur = trial;
+        else { if (cur) lines.push(cur); cur = word; }
+      });
+      if (cur) lines.push(cur);
+      return lines.length ? lines : [text];
+    }
+
+    function fitCanvas(canvas, cssH) {
+      var dpr = Math.max(1, window.devicePixelRatio || 1);
+      var rectW = canvas.getBoundingClientRect ? Math.floor(canvas.getBoundingClientRect().width) : 0;
+      var parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+      var w = Math.max(120, canvas.clientWidth || rectW || parentW || 300);
+      var h = cssH;
+      var bw = Math.floor(w * dpr);
+      var bh = Math.floor(h * dpr);
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw;
+        canvas.height = bh;
+        canvas.style.height = h + "px";
+      }
+      var ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx: ctx, w: w, h: h };
+    }
+
+    function corner(ctx, x, y, w, h, len, color) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      ctx.moveTo(x, y + len); ctx.lineTo(x, y); ctx.lineTo(x + len, y);
+      ctx.moveTo(x + w - len, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + len);
+      ctx.moveTo(x + w, y + h - len); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - len, y + h);
+      ctx.moveTo(x + len, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x, y + h - len);
+      ctx.stroke();
+    }
+
+    function sessionDayPoints(points) {
+      if (!points || !points.length) return [];
+      var today = etYmd(Date.now());
+      var todays = points.filter(function (p) { return etYmd(p.t) === today && Number.isFinite(p.close); });
+      if (todays.length) return todays;
+      var lastDay = etYmd(points[points.length - 1].t);
+      return points.filter(function (p) { return etYmd(p.t) === lastDay && Number.isFinite(p.close); });
+    }
+
+    function drawSpark(canvas, id) {
+      var fit = fitCanvas(canvas, 56);
+      var ctx = fit.ctx, w = fit.w, h = fit.h;
+      ctx.fillStyle = "#04080d";
+      ctx.fillRect(0, 0, w, h);
+      var c = charts[id];
+      var pts = c ? sessionDayPoints(c.points) : [];
+      if (pts.length < 2) {
+        ctx.fillStyle = "rgba(170, 220, 230, 0.45)";
+        ctx.font = "500 9px ui-monospace, SFMono-Regular, Menlo, monospace";
+        ctx.textAlign = "left";
+        var msg = !apiKey ? "Add API key for chart" : (c && c.error ? "Chart failed" : (c && c.loading ? "Loading chart…" : "No bars yet"));
+        ctx.fillText(msg, 8, h / 2 + 3);
+        return;
+      }
+      var ys = pts.map(function (p) { return p.close; });
+      var yMin = Math.min.apply(null, ys);
+      var yMax = Math.max.apply(null, ys);
+      var pad = Math.max((yMax - yMin) * 0.18, Math.abs(yMax) * 0.0008, 0.01);
+      yMin -= pad; yMax += pad;
+      var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+      if (t1 <= t0) t1 = t0 + 1;
+      function xOf(t) { return 4 + ((t - t0) / (t1 - t0)) * (w - 8); }
+      function yOf(v) { return 6 + (1 - (v - yMin) / (yMax - yMin)) * (h - 12); }
+      var last = pts[pts.length - 1].close;
+      var first = pts[0].close;
+      var up = last >= first;
+      var color = up ? "#3effc5" : "#ff4d6d";
+      ctx.beginPath();
+      ctx.moveTo(xOf(pts[0].t), yOf(pts[0].close));
+      pts.forEach(function (p, i) { if (i) ctx.lineTo(xOf(p.t), yOf(p.close)); });
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = up ? "rgba(62, 255, 197, 0.35)" : "rgba(255, 77, 109, 0.35)";
+      ctx.shadowBlur = 6;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(xOf(pts[pts.length - 1].t), yOf(pts[pts.length - 1].close), 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function renderFocusChart() {
+      var item = findItem(selectedId) || watchlist[0];
+      var fit = fitCanvas(el.chart, 320);
+      var ctx = fit.ctx, w = fit.w, h = fit.h;
+      ctx.fillStyle = "#04080d";
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = "rgba(0, 220, 255, 0.06)";
+      ctx.lineWidth = 1;
+      var i;
+      for (i = 0; i <= w; i += 32) { ctx.beginPath(); ctx.moveTo(i + 0.5, 0); ctx.lineTo(i + 0.5, h); ctx.stroke(); }
+      for (i = 0; i <= h; i += 32) { ctx.beginPath(); ctx.moveTo(0, i + 0.5); ctx.lineTo(w, i + 0.5); ctx.stroke(); }
+      corner(ctx, 6, 6, w - 12, h - 12, 12, "rgba(0, 230, 255, 0.35)");
+
+      if (!item) {
+        el.focusTitle.textContent = "Intraday";
+        el.chartCaption.textContent = "Add a ticker to see a chart.";
+        return;
+      }
+      el.focusTitle.textContent = "Intraday — " + item.id;
+      var c = charts[item.id];
+      var pts = c ? sessionDayPoints(c.points) : [];
+      ctx.fillStyle = "rgba(170, 220, 230, 0.65)";
+      ctx.font = "500 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.textAlign = "left";
+      if (pts.length < 2) {
+        var lines;
+        if (!apiKey) lines = ["Add a free Twelve Data API key", "in Settings to load the chart."];
+        else if (c && c.error) lines = wrapText(ctx, "Chart unavailable — " + c.error, w - 48);
+        else if (c && c.loading) lines = ["Loading 5-minute candles…"];
+        else lines = ["Waiting for chart data…"];
+        var y0 = h / 2 - (lines.length - 1) * 8;
+        lines.forEach(function (line, i) { ctx.fillText(line, 24, y0 + i * 16); });
+        el.chartCaption.textContent = !apiKey ? "Live price still updates without a key. Charts need Twelve Data." : (c && c.error ? c.error : "Queuing Twelve Data candles (8 credits/min).");
+        return;
+      }
+
+      var padL = 68, padR = 18, padT = 22, padB = 32;
+      var ys = [];
+      pts.forEach(function (p) {
+        ys.push(p.close);
+        if (Number.isFinite(p.high)) ys.push(p.high);
+        if (Number.isFinite(p.low)) ys.push(p.low);
+      });
+      var yMin = Math.min.apply(null, ys);
+      var yMax = Math.max.apply(null, ys);
+      var spanY = yMax - yMin;
+      var pad = Math.max(spanY * 0.14, Math.abs(yMax) * 0.0008, 0.01);
+      yMin -= pad; yMax += pad;
+      var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+      if (t1 <= t0) t1 = t0 + 1;
+      function xOf(t) { return padL + ((t - t0) / (t1 - t0)) * (w - padL - padR); }
+      function yOf(v) { return padT + (1 - (v - yMin) / (yMax - yMin)) * (h - padT - padB); }
+
+      ctx.strokeStyle = "rgba(0, 220, 255, 0.12)";
+      ctx.fillStyle = "rgba(170, 220, 230, 0.6)";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (i = 0; i <= 4; i++) {
+        var yv = yMin + ((yMax - yMin) * i) / 4;
+        var yy = yOf(yv);
+        ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - padR, yy); ctx.stroke();
+        ctx.fillText(fmtPrice(yv, item.id), padL - 8, yy);
+      }
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      for (i = 0; i <= 4; i++) {
+        var tt = t0 + ((t1 - t0) * i) / 4;
+        ctx.fillText(fmtPT(tt, false), xOf(tt), h - 10);
+      }
+
+      var q = quotes[item.id];
+      var prev = q && Number.isFinite(q.previousClose) ? q.previousClose : null;
+      if (Number.isFinite(prev) && prev >= yMin && prev <= yMax) {
+        ctx.strokeStyle = "rgba(255,255,255,0.28)";
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.moveTo(padL, yOf(prev)); ctx.lineTo(w - padR, yOf(prev)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "rgba(220, 240, 245, 0.75)";
+        ctx.textAlign = "left";
+        ctx.fillText("PREV " + fmtPrice(prev, item.id), padL + 6, yOf(prev) - 6);
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(xOf(pts[0].t), yOf(Number.isFinite(pts[0].high) ? pts[0].high : pts[0].close));
+      for (i = 1; i < pts.length; i++) ctx.lineTo(xOf(pts[i].t), yOf(Number.isFinite(pts[i].high) ? pts[i].high : pts[i].close));
+      for (i = pts.length - 1; i >= 0; i--) ctx.lineTo(xOf(pts[i].t), yOf(Number.isFinite(pts[i].low) ? pts[i].low : pts[i].close));
+      ctx.closePath();
+      ctx.fillStyle = "rgba(0, 220, 255, 0.09)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(xOf(pts[0].t), yOf(pts[0].close));
+      for (i = 1; i < pts.length; i++) ctx.lineTo(xOf(pts[i].t), yOf(pts[i].close));
+      ctx.strokeStyle = "#00f0ff";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = "rgba(0, 240, 255, 0.45)";
+      ctx.shadowBlur = 10;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      var last = pts[pts.length - 1];
+      ctx.fillStyle = "#3effc5";
+      ctx.beginPath();
+      ctx.arc(xOf(last.t), yOf(last.close), 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      var n = pts.length;
+      var caption = (c.source || "Intraday") + "  ·  " + n + " pts  ·  " + fmtPT(pts[0].t) + "–" + fmtPT(last.t);
+      if (c.proxy && c.proxyLabel) caption += "  ·  Chart is " + c.proxyLabel + " (proxy); price on the tile is the official index.";
+      el.chartCaption.textContent = caption;
+    }
+
+    function renderCredits() {
+      ensureCreditDay();
+      var avail = creditsAvailable();
+      var txt = "Twelve Data: " + tdDay.count + " / " + TD_PER_DAY + " credits today, " +
+        (TD_PER_MIN - Math.min(TD_PER_MIN, tdUsed.length)) + " left this minute";
+      if (tdQueue.length) txt += "  ·  " + tdQueue.length + " queued";
+      if (!apiKey) txt = "No Twelve Data key saved. Quotes still run. Charts and week/month/YTD wait for a key.";
+      else if (tdDay.count >= TD_PER_DAY) txt += "  ·  Daily cap reached.";
+      el.creditNote.textContent = txt;
+    }
+
+    /* ---------- watchlist add/remove ---------- */
+    function setAddMsg(text, ok) {
+      el.addMsg.textContent = text || "";
+      el.addMsg.className = "add-msg" + (ok ? " ok" : "");
+    }
+
+    function kindFromCnbc(raw) {
+      var typ = String(raw.type || "").toUpperCase();
+      var sub = String(raw.subType || "").toUpperCase();
+      if (typ === "INDEX") return "index";
+      if (sub.indexOf("ETF") >= 0 || typ.indexOf("ETF") >= 0) return "etf";
+      return "stock";
+    }
+
+    function alertForKind(kind, id) {
+      if (id === "VIX" || /VIX/.test(id)) return 10;
+      if (kind === "stock") return 5;
+      return 2;
+    }
+
+    function addTicker(symbol) {
+      var raw = String(symbol || "").trim().toUpperCase().replace(/^\$/, "");
+      if (!raw) { setAddMsg("Type a symbol first."); return; }
+      if (!/^[A-Z0-9.\-]{1,16}$/.test(raw)) { setAddMsg("That doesn't look like a ticker symbol."); return; }
+      if (findItem(raw) || watchlist.some(function (t) { return t.cnbc === raw || t.cnbc === "." + raw; })) {
+        var existing = findItem(raw) || watchlist.filter(function (t) { return t.cnbc === raw || t.cnbc === "." + raw; })[0];
+        selectTicker(existing.id);
+        setAddMsg(existing.id + " is already on the list.", true);
+        return;
+      }
+      if (adding) return;
+      adding = true;
+      el.addBtn.disabled = true;
+      setAddMsg("Checking " + raw + "…");
+      var tries = [raw];
+      if (raw.indexOf(".") !== 0) tries.push("." + raw);
+      fetch(cnbcUrl(tries), { cache: "no-store" }).then(function (res) {
+        if (!res.ok) throw new Error("CNBC lookup HTTP " + res.status);
+        return res.json();
+      }).then(function (data) {
+        var list = data && data.FormattedQuoteResult && data.FormattedQuoteResult.FormattedQuote;
+        if (!Array.isArray(list)) throw new Error("Unexpected lookup response");
+        var hit = null;
+        list.forEach(function (q) {
+          if (hit) return;
+          if (q && Number(q.code) === 0 && parseNum(q.last) != null) hit = q;
+        });
+        if (!hit) throw new Error("CNBC has no quote for " + raw);
+        var kind = kindFromCnbc(hit);
+        var id = String(hit.symbol || raw).replace(/^\./, "").toUpperCase();
+        if (findItem(id)) {
+          selectTicker(id);
+          setAddMsg(id + " is already on the list.", true);
+          return;
+        }
+        var item = {
+          id: id,
+          cnbc: String(hit.symbol),
+          tdSymbols: [id, String(hit.symbol).replace(/^\./, "")],
+          name: hit.name || hit.shortName || id,
+          kind: kind,
+          alertPct: alertForKind(kind, id),
+          chartProxy: null
+        };
+        watchlist.push(item);
+        saveWatchlist();
+        var parsed = parseCnbcQuote(hit);
+        if (parsed) quotes[id] = parsed;
+        selectTicker(id);
+        requestSeriesFor(item, true);
+        setAddMsg("Added " + id + " (" + (item.name) + "). " + item.alertPct + "% move alerts later.", true);
+        el.addInput.value = "";
+        render();
+      }).catch(function (err) {
+        setAddMsg((err && err.message) ? err.message : "Could not validate that symbol.");
+      }).then(function () {
+        adding = false;
+        el.addBtn.disabled = false;
+      });
+    }
+
+    function removeTicker(id) {
+      watchlist = watchlist.filter(function (t) { return t.id !== id; });
+      saveWatchlist();
+      if (selectedId === id) {
+        selectedId = (findItem("SPX") || watchlist[0] || {}).id || "";
+        try { localStorage.setItem(LS_SELECTED, selectedId); } catch (e) {}
+      }
+      setAddMsg("Removed " + id + ".", true);
+      render();
+    }
+
+    function resetDefaults() {
+      watchlist = cloneDefaults();
+      saveWatchlist();
+      selectedId = "SPX";
+      try { localStorage.setItem(LS_SELECTED, selectedId); } catch (e) {}
+      setAddMsg("Watchlist reset to the defaults.", true);
+      refreshAllCharts(true);
+      fetchQuotes();
+    }
+
+    function refreshAllCharts(force) {
+      if (!apiKey) return;
+      watchlist.forEach(function (t) { requestSeriesFor(t, force); });
+    }
+
+    /* ---------- settings ---------- */
+    function openSettings() {
+      el.settingsBack.classList.add("open");
+      el.keyInput.value = apiKey;
+      renderCredits();
+    }
+    function closeSettings() {
+      el.settingsBack.classList.remove("open");
+    }
+
+    /* ---------- boot ---------- */
+    function tickClock() {
+      el.clock.textContent = fmtPT(Date.now(), true, true);
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      fetchQuotes();
+      pollTimer = setInterval(fetchQuotes, POLL_MS);
+    }
+
+    el.addForm.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      addTicker(el.addInput.value);
+    });
+    el.resetList.addEventListener("click", function () { resetDefaults(); });
+    el.openSettings.addEventListener("click", openSettings);
+    el.closeSettings.addEventListener("click", closeSettings);
+    el.settingsBack.addEventListener("click", function (ev) {
+      if (ev.target === el.settingsBack) closeSettings();
+    });
+    el.keyForm.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var k = (el.keyInput.value || "").trim();
+      if (!k) {
+        el.keyMsg.textContent = "Paste a key, or use Remove key.";
+        el.keyMsg.className = "add-msg";
+        return;
+      }
+      apiKey = k;
+      saveKey(k);
+      el.keyMsg.textContent = "Key saved in this browser. Loading charts…";
+      el.keyMsg.className = "add-msg ok";
+      refreshAllCharts(true);
+      render();
+    });
+    el.clearKey.addEventListener("click", function () {
+      apiKey = "";
+      saveKey("");
+      el.keyInput.value = "";
+      el.keyMsg.textContent = "Key removed. Quotes keep running; charts will pause.";
+      el.keyMsg.className = "add-msg";
+      render();
+    });
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") {
+        fetchQuotes();
+        refreshAllCharts(false);
+      }
+    });
+    window.addEventListener("pageshow", function () {
+      fetchQuotes();
+    });
+    window.addEventListener("resize", function () {
+      renderFocusChart();
+      Array.prototype.forEach.call(document.querySelectorAll("canvas[data-spark]"), function (cv) {
+        drawSpark(cv, cv.getAttribute("data-spark"));
+      });
+    });
+
+    watchlist = loadWatchlist();
+    apiKey = loadKey();
+    loadCredits();
+    try {
+      var savedSel = localStorage.getItem(LS_SELECTED);
+      if (savedSel && findItem(savedSel)) selectedId = savedSel;
+      else if (!findItem(selectedId) && watchlist[0]) selectedId = watchlist[0].id;
+    } catch (e) {}
+
+    tickClock();
+    setInterval(tickClock, 1000);
+    render();
+    startPolling();
+    if (apiKey) refreshAllCharts(false);
+    setInterval(function () { if (apiKey) refreshAllCharts(false); }, CHART_REFRESH_MS);
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+  })();
+  </script>
+</body>
+</html>
