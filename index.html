@@ -264,6 +264,34 @@
     }
     .tk-rows .k { color: var(--faint); letter-spacing: 0.08em; text-transform: uppercase; margin-right: 6px; }
     .tk-quote { margin-top: 4px; font-size: 10px; color: var(--faint); letter-spacing: 0.04em; }
+    .vol-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      margin-top: 6px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .vol-line .k { color: var(--faint); letter-spacing: 0.08em; text-transform: uppercase; }
+    .vol-line .vol-cmp { color: var(--muted); }
+    .vol-line .vol-note { width: 100%; font-size: 10px; color: var(--faint); letter-spacing: 0.02em; }
+    .vol-tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border: 1px solid rgba(0, 220, 255, 0.3);
+      color: var(--cyan);
+    }
+    .vol-tag.vol-low { border-color: rgba(255, 176, 0, 0.5); color: var(--amber); }
+    .vol-tag.vol-norm { border-color: rgba(0, 240, 255, 0.4); color: var(--cyan); }
+    .vol-tag.vol-high { border-color: rgba(62, 255, 197, 0.55); color: var(--mint); }
+    .vol-tag.vol-na { border-color: rgba(170, 220, 230, 0.2); color: var(--faint); }
     .icon-btn {
       background: transparent;
       border: 1px solid rgba(170, 220, 230, 0.2);
@@ -449,7 +477,7 @@
 
     <div class="section-h">
       <h2>Watchlist</h2>
-      <p id="watchNote">Today, pre/after hours, week, month, and YTD. Tap a tile for the large chart.</p>
+      <p id="watchNote">Today, volume vs 10-day avg, pre/after hours, week, month, and YTD. Tap a tile for the large chart.</p>
     </div>
     <form class="add-row" id="addForm">
       <div>
@@ -466,6 +494,7 @@
       <strong>Display only.</strong> This page never places orders and never connects to a brokerage account.
       Live quotes, official SPX / VIX / DXY values, and premarket / after-hours moves come from CNBC’s public quote feed (unofficial; if it fails, that ticker shows an error — prices are never invented).
       Intraday charts and week / month / YTD changes use a free Twelve Data key that you paste in Settings; it stays in this browser only.
+      Volume is today’s exchange volume from the same CNBC quote, compared with CNBC’s 10-day average; Low / Normal / High uses session pace so a half-day or mid-morning print isn’t marked low just because the day isn’t finished. Indexes such as SPX, VIX, and DXY don’t publish share volume.
       Times are Pacific Time (PT).
       On iPhone, open this page in Safari, tap Share, then Add to Home Screen.
     </footer>
@@ -678,6 +707,234 @@
       return isNaN(d.getTime()) ? null : d.getTime();
     }
 
+    function parseCompactVol(v) {
+      if (v == null || v === "") return null;
+      if (typeof v === "number") return Number.isFinite(v) && v >= 0 ? v : null;
+      var s = String(v).trim().replace(/,/g, "").toUpperCase();
+      if (!s || s === "--" || s === "—" || s === "-" || s === "N/A" || s === "NA") return null;
+      var m = s.match(/^([+-]?\d+(?:\.\d+)?)([KMB])?$/);
+      if (!m) {
+        var n0 = parseNum(s);
+        return n0 != null && n0 >= 0 ? n0 : null;
+      }
+      var n = Number(m[1]);
+      if (!Number.isFinite(n) || n < 0) return null;
+      var mul = { K: 1e3, M: 1e6, B: 1e9 }[m[2]] || 1;
+      return n * mul;
+    }
+
+    function fmtCompactVol(n) {
+      if (!Number.isFinite(n) || n < 0) return "—";
+      var abs = n, suffix = "", div = 1;
+      if (abs >= 1e9) { suffix = "B"; div = 1e9; }
+      else if (abs >= 1e6) { suffix = "M"; div = 1e6; }
+      else if (abs >= 1e3) { suffix = "K"; div = 1e3; }
+      else return String(Math.round(n));
+      var val = abs / div;
+      var digits = val >= 100 ? 0 : val >= 10 ? 1 : 2;
+      var body = val.toFixed(digits);
+      if (digits > 0) body = body.replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
+      return body + suffix;
+    }
+
+    var VOL_LOW = 0.75;
+    var VOL_HIGH = 1.25;
+    var FULL_SESSION_MIN = 6.5 * 60;
+    var OPEN_MIN = 9 * 60 + 30;
+
+    function etClock(ms) {
+      var parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: ET, weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hour12: false
+      }).formatToParts(new Date(ms));
+      function part(type) {
+        var found = parts.filter(function (p) { return p.type === type; })[0];
+        return found ? found.value : "";
+      }
+      var hour = Number(part("hour"));
+      if (hour === 24) hour = 0;
+      var month = part("month");
+      var day = part("day");
+      return {
+        hour: hour,
+        minute: Number(part("minute")),
+        weekday: part("weekday"),
+        ymd: part("year") + "-" + month + "-" + day,
+        minutes: hour * 60 + Number(part("minute"))
+      };
+    }
+
+    function weekdayOnYmd(ymd) {
+      var bits = String(ymd).split("-").map(Number);
+      if (bits.length < 3) return "";
+      var noonUtc = Date.UTC(bits[0], bits[1] - 1, bits[2], 17, 0, 0);
+      return etClock(noonUtc).weekday;
+    }
+
+    function addDaysYmd(ymd, days) {
+      var bits = String(ymd).split("-").map(Number);
+      var dt = new Date(Date.UTC(bits[0], bits[1] - 1, bits[2] + days, 12, 0, 0));
+      return dt.toISOString().slice(0, 10);
+    }
+
+    function thanksgivingYmd(year) {
+      var d, count = 0;
+      for (d = 1; d <= 28; d++) {
+        var ymd = year + "-11-" + String(d).padStart(2, "0");
+        if (weekdayOnYmd(ymd) === "Thu") {
+          count += 1;
+          if (count === 4) return ymd;
+        }
+      }
+      return null;
+    }
+
+    function isScheduledEarlyClose(ymd) {
+      if (!ymd) return false;
+      var bits = ymd.split("-").map(Number);
+      var year = bits[0], month = bits[1], day = bits[2];
+      var wd = weekdayOnYmd(ymd);
+      if (wd === "Sat" || wd === "Sun") return false;
+      var thanks = thanksgivingYmd(year);
+      if (thanks && addDaysYmd(thanks, 1) === ymd) return true;
+      if (month === 12 && day === 24) return true;
+      if (month === 7 && day === 3 && weekdayOnYmd(year + "-07-04") !== "Sat" && weekdayOnYmd(year + "-07-04") !== "Sun") return true;
+      return false;
+    }
+
+    function inferSessionCloseMin(sess, lastMin, ymd) {
+      if (isScheduledEarlyClose(ymd)) return 13 * 60;
+      if ((sess === "after" || sess === "closed") && lastMin != null) {
+        if (lastMin >= 12 * 60 + 45 && lastMin <= 13 * 60 + 30) return 13 * 60;
+        if (lastMin < 15 * 60 && lastMin >= OPEN_MIN) return lastMin;
+      }
+      return 16 * 60;
+    }
+
+    function avgVolumeFromDaily(item) {
+      var c = charts[item.id];
+      if (!c || !c.daily || !c.daily.length) return null;
+      var today = etYmd(Date.now());
+      var vols = [];
+      var i;
+      for (i = c.daily.length - 1; i >= 0 && vols.length < 10; i--) {
+        var bar = c.daily[i];
+        if (!bar || !Number.isFinite(bar.volume) || bar.volume <= 0) continue;
+        if (etYmd(bar.t) === today) continue;
+        vols.push(bar.volume);
+      }
+      if (vols.length < 5) return null;
+      var sum = 0;
+      vols.forEach(function (v) { sum += v; });
+      return { avg: sum / vols.length, source: "Twelve Data " + vols.length + "-day avg", n: vols.length };
+    }
+
+    function volumeView(item, q, now) {
+      var typ = String((q && q.type) || item.kind || "").toUpperCase();
+      var isIndex = typ === "INDEX" || item.kind === "index";
+      if (isIndex) {
+        var hint = item.id === "SPX" ? "Share volume isn’t published for the index; see SPY for ETF volume." : "Share volume isn’t published for this index.";
+        return { kind: "index", text: "N/A (index)", hint: hint };
+      }
+      if (!q) return { kind: "waiting", text: "—" };
+      var vol = Number.isFinite(q.volume) ? q.volume : null;
+      var avg = Number.isFinite(q.avgVolume) && q.avgVolume > 0 ? q.avgVolume : null;
+      var avgSource = avg ? "CNBC 10-day avg" : null;
+      if (avg == null) {
+        var tdAvg = avgVolumeFromDaily(item);
+        if (tdAvg) {
+          avg = tdAvg.avg;
+          avgSource = tdAvg.source;
+        }
+      }
+      if (vol == null) return { kind: "missing", text: "—" };
+      var rawRatio = null;
+      if (Number.isFinite(q.pctVsAvg) && q.pctVsAvg > 0 && avgSource && avgSource.indexOf("CNBC") === 0) {
+        rawRatio = q.pctVsAvg;
+      } else if (avg) {
+        rawRatio = vol / avg;
+      }
+      var sess = sessionOf(q.marketStatus);
+      var lastClk = q.time ? etClock(q.time) : null;
+      var nowClk = etClock(now);
+      var ymd = (lastClk && lastClk.ymd) || nowClk.ymd;
+      var lastMin = lastClk ? lastClk.minutes : null;
+      var closeMin = inferSessionCloseMin(sess, lastMin, ymd);
+      var halfDay = closeMin < 15 * 60;
+      var sessionComplete = (sess === "after" || sess === "closed");
+      var elapsedMin = null;
+      if (sess === "pre") elapsedMin = 0;
+      else if (sessionComplete) elapsedMin = closeMin - OPEN_MIN;
+      else if (sess === "regular") elapsedMin = Math.max(1, Math.min(closeMin, nowClk.minutes) - OPEN_MIN);
+      else elapsedMin = lastMin != null ? Math.max(1, Math.min(closeMin, lastMin) - OPEN_MIN) : null;
+
+      var paceRatio = null;
+      var usedPace = false;
+      if (rawRatio != null && elapsedMin != null && elapsedMin > 0) {
+        var frac = elapsedMin / FULL_SESSION_MIN;
+        if (frac > 0) {
+          if (!sessionComplete || halfDay || frac < 0.98) {
+            paceRatio = rawRatio / frac;
+            usedPace = !(sessionComplete && !halfDay);
+          }
+        }
+      }
+      var compareRatio = usedPace ? paceRatio : rawRatio;
+      var tag = null;
+      var tagCls = "";
+      var tooEarly = sess === "pre" || (sess === "regular" && elapsedMin != null && elapsedMin < 15);
+      if (compareRatio != null && !tooEarly) {
+        if (compareRatio < VOL_LOW) { tag = "Low"; tagCls = "vol-low"; }
+        else if (compareRatio > VOL_HIGH) { tag = "High"; tagCls = "vol-high"; }
+        else { tag = "Normal"; tagCls = "vol-norm"; }
+      }
+
+      var displayVol = q.volumeAlt || fmtCompactVol(vol);
+      var cmp = null;
+      if (usedPace && Number.isFinite(paceRatio)) {
+        cmp = paceRatio.toFixed(2).replace(/\.0+$/, "").replace(/(\.[1-9])0$/, "$1") + "× pace";
+        if (halfDay) cmp += " (half-day)";
+        else if (!sessionComplete) cmp += " (in session)";
+      } else if (Number.isFinite(rawRatio)) {
+        cmp = rawRatio.toFixed(2).replace(/\.0+$/, "").replace(/(\.[1-9])0$/, "$1") + "× avg";
+      }
+
+      var noteParts = [];
+      if (avg) noteParts.push("vs " + (q.avgVolumeLabel || fmtCompactVol(avg)) + " " + (avgSource || "avg"));
+      if (usedPace && Number.isFinite(rawRatio)) {
+        noteParts.push(rawRatio.toFixed(2).replace(/\.0+$/, "").replace(/(\.[1-9])0$/, "$1") + "× full-day avg");
+      }
+      if (halfDay) noteParts.push("short session (1:00 PM ET close)");
+      if (tooEarly && sess === "pre") noteParts.push("regular session not open yet");
+      else if (tooEarly) noteParts.push("too early in the session to tag");
+      return {
+        kind: "ok",
+        displayVol: displayVol,
+        cmp: cmp,
+        tag: tag,
+        tagCls: tagCls,
+        note: noteParts.join("  ·  "),
+        rawRatio: rawRatio,
+        paceRatio: paceRatio
+      };
+    }
+
+    function volumeLineHtml(item, q, now) {
+      var v = volumeView(item, q, now);
+      if (v.kind === "index") {
+        return "<div class=\"vol-line\"><span class=\"k\">Vol</span> <span>—</span> <span class=\"vol-tag vol-na\">N/A (index)</span><span class=\"vol-note\">" + esc(v.hint) + "</span></div>";
+      }
+      if (v.kind !== "ok") {
+        return "<div class=\"vol-line\"><span class=\"k\">Vol</span> <span>—</span></div>";
+      }
+      var html = "<div class=\"vol-line\"><span class=\"k\">Vol</span> <span>" + esc(v.displayVol) + "</span>";
+      if (v.cmp) html += "<span class=\"vol-cmp\">" + esc(v.cmp) + "</span>";
+      if (v.tag) html += "<span class=\"vol-tag " + v.tagCls + "\">" + esc(v.tag) + "</span>";
+      if (v.note) html += "<span class=\"vol-note\">" + esc(v.note) + "</span>";
+      html += "</div>";
+      return html;
+    }
+
     function fmtPrice(n, id) {
       if (!Number.isFinite(n)) return "—";
       var digits = 2;
@@ -783,7 +1040,17 @@
       if (q.error && !Number.isFinite(q.last)) return { cls: "st-error", label: "Error" };
       if (!Number.isFinite(q.last)) return { cls: "st-unavailable", label: "No data" };
       var sess = sessionOf(q.marketStatus);
+      var clk = q.time ? etClock(q.time) : etClock(now);
+      var nowClk = etClock(now);
+      if (sess === "regular" && isScheduledEarlyClose(nowClk.ymd) && nowClk.minutes > 13 * 60 + 5) {
+        sess = "after";
+      }
       if (sess === "closed") return { cls: "st-closed", label: "Closed" };
+      if (sess === "after") {
+        var extAge = q.extTime ? (now - q.extTime) : null;
+        if (extAge != null && extAge <= STALE_EXT_MS) return { cls: "st-live", label: "After hours" };
+        return { cls: "st-closed", label: "After hours" };
+      }
       var age = q.time ? (now - q.time) : Infinity;
       var limit = (sess === "regular") ? STALE_REG_MS : STALE_EXT_MS;
       if (q.time && age > limit) return { cls: "st-stale", label: "Stale" };
@@ -815,6 +1082,11 @@
         marketStatus: raw.curmktstatus || "",
         source: "CNBC",
         realTime: raw.realTime === true || raw.realTime === "true",
+        volume: parseCompactVol(raw.volume) != null ? parseCompactVol(raw.volume) : parseCompactVol(raw.volume_alt),
+        volumeAlt: raw.volume_alt ? String(raw.volume_alt) : null,
+        avgVolume: parseCompactVol(raw.tendayavgvol),
+        avgVolumeLabel: raw.tendayavgvol ? String(raw.tendayavgvol) : null,
+        pctVsAvg: parseNum(raw.pcttendayvol),
         extType: extType,
         extLast: extLast,
         extPct: extPct,
@@ -1174,12 +1446,17 @@
       var now = Date.now();
       el.clock.textContent = fmtPT(now, true, true);
       var sess = "unknown";
-      var id;
+      var id, seen = [];
       for (id in quotes) {
-        if (quotes[id] && quotes[id].marketStatus) {
-          sess = sessionOf(quotes[id].marketStatus);
-          if (sess !== "unknown") break;
-        }
+        if (quotes[id] && quotes[id].marketStatus) seen.push(sessionOf(quotes[id].marketStatus));
+      }
+      if (seen.indexOf("after") >= 0) sess = "after";
+      else if (seen.indexOf("pre") >= 0) sess = "pre";
+      else if (seen.indexOf("regular") >= 0) sess = "regular";
+      else if (seen.indexOf("closed") >= 0) sess = "closed";
+      var nowClkBadge = etClock(now);
+      if ((sess === "regular" || sess === "unknown") && isScheduledEarlyClose(nowClkBadge.ymd) && nowClkBadge.minutes > 13 * 60 + 5) {
+        sess = "after";
       }
       el.sessionBadge.textContent = sessionLabel(sess);
       if (sess === "closed") el.sessionBadge.classList.add("warn");
@@ -1285,6 +1562,7 @@
         html += "</div></div>";
         html += "<div class=\"tk-meta\"><div class=\"tk-price\">" + esc(price) + "</div><div class=\"tk-chg " + pctClass(q && q.changePct) + "\">" + esc(chg) + "</div></div>";
         html += "<canvas class=\"spark\" data-spark=\"" + esc(t.id) + "\" width=\"400\" height=\"72\" aria-hidden=\"true\"></canvas>";
+        html += volumeLineHtml(t, q, now);
         html += "<div class=\"tk-rows\">";
         html += retCell("Today", q && q.changePct, Number.isFinite(q && q.changePct) ? null : (q && q.error ? "error" : null));
         html += retCell("Pre", ext.pre.pct, null);
@@ -1377,8 +1655,28 @@
       return points.filter(function (p) { return etYmd(p.t) === lastDay && Number.isFinite(p.close); });
     }
 
+    function drawVolumeStrip(ctx, pts, xOf, x0, x1, yBase, barH) {
+      var vols = pts.filter(function (p) { return Number.isFinite(p.volume) && p.volume > 0; });
+      if (vols.length < 2) return false;
+      var maxV = 0;
+      vols.forEach(function (p) { if (p.volume > maxV) maxV = p.volume; });
+      if (maxV <= 0) return false;
+      var i, p, x, bw, vh;
+      var span = Math.max(1, x1 - x0);
+      bw = Math.max(1, Math.min(4, (span / pts.length) * 0.7));
+      ctx.fillStyle = "rgba(0, 220, 255, 0.28)";
+      for (i = 0; i < pts.length; i++) {
+        p = pts[i];
+        if (!Number.isFinite(p.volume) || p.volume <= 0) continue;
+        x = xOf(p.t);
+        vh = Math.max(1, (p.volume / maxV) * barH);
+        ctx.fillRect(x - bw / 2, yBase - vh, bw, vh);
+      }
+      return true;
+    }
+
     function drawSpark(canvas, id) {
-      var fit = fitCanvas(canvas, 56);
+      var fit = fitCanvas(canvas, 64);
       var ctx = fit.ctx, w = fit.w, h = fit.h;
       ctx.fillStyle = "#04080d";
       ctx.fillRect(0, 0, w, h);
@@ -1392,6 +1690,8 @@
         ctx.fillText(msg, 8, h / 2 + 3);
         return;
       }
+      var hasVol = pts.some(function (p) { return Number.isFinite(p.volume) && p.volume > 0; });
+      var volH = hasVol ? 14 : 0;
       var ys = pts.map(function (p) { return p.close; });
       var yMin = Math.min.apply(null, ys);
       var yMax = Math.max.apply(null, ys);
@@ -1400,7 +1700,8 @@
       var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
       if (t1 <= t0) t1 = t0 + 1;
       function xOf(t) { return 4 + ((t - t0) / (t1 - t0)) * (w - 8); }
-      function yOf(v) { return 6 + (1 - (v - yMin) / (yMax - yMin)) * (h - 12); }
+      function yOf(v) { return 5 + (1 - (v - yMin) / (yMax - yMin)) * (h - 10 - volH - (hasVol ? 3 : 0)); }
+      if (hasVol) drawVolumeStrip(ctx, pts, xOf, 4, w - 4, h - 2, volH);
       var last = pts[pts.length - 1].close;
       var first = pts[0].close;
       var up = last >= first;
@@ -1456,7 +1757,8 @@
         return;
       }
 
-      var padL = 68, padR = 18, padT = 22, padB = 32;
+      var hasVol = pts.some(function (p) { return Number.isFinite(p.volume) && p.volume > 0; });
+      var padL = 68, padR = 18, padT = 22, padB = hasVol ? 52 : 32;
       var ys = [];
       pts.forEach(function (p) {
         ys.push(p.close);
@@ -1526,8 +1828,13 @@
       ctx.arc(xOf(last.t), yOf(last.close), 4, 0, Math.PI * 2);
       ctx.fill();
 
+      if (hasVol) {
+        drawVolumeStrip(ctx, pts, xOf, padL, w - padR, h - 16, 18);
+      }
+
       var n = pts.length;
       var caption = (c.source || "Intraday") + "  ·  " + n + " pts  ·  " + fmtPT(pts[0].t) + "–" + fmtPT(last.t);
+      if (hasVol) caption += "  ·  volume bars from Twelve Data";
       if (c.proxy && c.proxyLabel) caption += "  ·  Chart is " + c.proxyLabel + " (proxy); price on the tile is the official index.";
       el.chartCaption.textContent = caption;
     }

@@ -1,7 +1,7 @@
 /* MKT Live app-shell service worker.
    Caches only same-origin static files. Never caches quotes,
    candle API responses, or other third-party market data. */
-var CACHE_NAME = "mkt-live-shell-v1";
+var CACHE_NAME = "mkt-live-shell-v2";
 var SHELL_URLS = [
   "./",
   "./index.html",

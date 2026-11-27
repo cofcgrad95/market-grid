@@ -8,7 +8,7 @@ This folder is ready to publish later; it has not been pushed yet.
 
 Default watchlist: the S&P 500 index (SPX), SPY, QQQ, the Mag 7 (AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA), the VIX, and the ICE U.S. Dollar Index (DXY). You can add or remove tickers, including the defaults. The list is saved in this browser only.
 
-Each tile shows today’s % change, an intraday chart, premarket and after-hours moves, and week / month / year-to-date changes. Times are Pacific Time (PT).
+Each tile shows today’s % change, today’s volume versus a 10-day average (with a Low / Normal / High tag), an intraday chart, premarket and after-hours moves, and week / month / year-to-date changes. Times are Pacific Time (PT). Indexes such as SPX, VIX, and DXY do not publish share volume.
 
 ## Data sources
 
