@@ -191,6 +191,29 @@
       background: #04080d;
     }
     canvas.spark { border-radius: 8px; }
+    canvas.chart { cursor: crosshair; touch-action: none; }
+    .chart-wrap { position: relative; }
+    .chart-readout {
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      z-index: 3;
+      min-width: 128px;
+      max-width: calc(100% - 16px);
+      background: rgba(4, 10, 16, 0.94);
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+    .chart-readout.open { display: block; }
+    .chart-readout .ro-time { color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
+    .chart-readout .ro-px { font-size: 14px; font-weight: 600; }
+    .chart-readout .ro-vol { color: var(--muted); }
     .section-h {
       display: flex;
       justify-content: space-between;
@@ -471,7 +494,10 @@
           <h2 id="focusTitle">Intraday — SPX</h2>
           <p id="chartCaption">Waiting for candles</p>
         </div>
-        <canvas class="chart" id="chart" width="1200" height="320" aria-label="Intraday chart"></canvas>
+        <div class="chart-wrap" id="chartWrap">
+          <canvas class="chart" id="chart" width="1200" height="380" aria-label="Intraday price and volume chart"></canvas>
+          <div class="chart-readout" id="chartReadout" role="status"></div>
+        </div>
       </div>
     </div>
 
@@ -573,6 +599,8 @@
       focusTitle: document.getElementById("focusTitle"),
       chartCaption: document.getElementById("chartCaption"),
       chart: document.getElementById("chart"),
+      chartWrap: document.getElementById("chartWrap"),
+      chartReadout: document.getElementById("chartReadout"),
       tickers: document.getElementById("tickers"),
       addForm: document.getElementById("addForm"),
       addInput: document.getElementById("addInput"),
@@ -594,6 +622,7 @@
     var charts = {};
     var selectedId = "SPX";
     var apiKey = "";
+    var focusChartLayout = null;
     var pollTimer = null;
     var pollError = null;
     var lastPollAt = null;
@@ -971,6 +1000,14 @@
         opts.year = "numeric";
       }
       return new Intl.DateTimeFormat("en-US", opts).format(d) + " PT";
+    }
+
+    function fmtAxisPT(d) {
+      if (!(d instanceof Date)) d = new Date(d);
+      if (isNaN(d.getTime())) return "";
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true
+      }).format(d);
     }
 
     function etYmd(ms) {
@@ -1655,28 +1692,98 @@
       return points.filter(function (p) { return etYmd(p.t) === lastDay && Number.isFinite(p.close); });
     }
 
-    function drawVolumeStrip(ctx, pts, xOf, x0, x1, yBase, barH) {
-      var vols = pts.filter(function (p) { return Number.isFinite(p.volume) && p.volume > 0; });
-      if (vols.length < 2) return false;
-      var maxV = 0;
-      vols.forEach(function (p) { if (p.volume > maxV) maxV = p.volume; });
-      if (maxV <= 0) return false;
-      var i, p, x, bw, vh;
-      var span = Math.max(1, x1 - x0);
-      bw = Math.max(1, Math.min(4, (span / pts.length) * 0.7));
-      ctx.fillStyle = "rgba(0, 220, 255, 0.28)";
-      for (i = 0; i < pts.length; i++) {
-        p = pts[i];
-        if (!Number.isFinite(p.volume) || p.volume <= 0) continue;
-        x = xOf(p.t);
-        vh = Math.max(1, (p.volume / maxV) * barH);
-        ctx.fillRect(x - bw / 2, yBase - vh, bw, vh);
-      }
+    var focusHoverIndex = null;
+
+    function barIsUp(pts, i) {
+      var p = pts[i];
+      if (!p) return true;
+      if (Number.isFinite(p.open)) return p.close >= p.open;
+      if (i > 0 && pts[i - 1] && Number.isFinite(pts[i - 1].close)) return p.close >= pts[i - 1].close;
       return true;
     }
 
+    function volumeFill(up, alpha) {
+      if (alpha == null) alpha = 0.9;
+      return up ? "rgba(62, 255, 197, " + alpha + ")" : "rgba(255, 77, 109, " + alpha + ")";
+    }
+
+    function maxVolume(pts) {
+      var maxV = 0, i;
+      for (i = 0; i < pts.length; i++) {
+        if (Number.isFinite(pts[i].volume) && pts[i].volume > maxV) maxV = pts[i].volume;
+      }
+      return maxV;
+    }
+
+    function pointsHaveVolume(pts) {
+      return pts.some(function (p) { return Number.isFinite(p.volume) && p.volume > 0; });
+    }
+
+    function barWidthFor(pts, xOf) {
+      var gap = 8;
+      if (pts.length >= 2) gap = Math.abs(xOf(pts[1].t) - xOf(pts[0].t));
+      return Math.max(1.5, Math.min(10, gap * 0.72));
+    }
+
+    function drawVolumeHistogram(ctx, pts, xOf, volTop, volBottom, maxV, opts) {
+      var compact = opts && opts.compact;
+      var padL = opts && opts.padL != null ? opts.padL : 0;
+      var padR = opts && opts.padR != null ? opts.padR : 0;
+      var w = opts && opts.w != null ? opts.w : 0;
+      var i, p, x, vh, bw;
+      bw = barWidthFor(pts, xOf);
+      if (!compact && w) {
+        ctx.fillStyle = "rgba(0, 30, 44, 0.35)";
+        ctx.fillRect(padL, volTop, w - padL - padR, volBottom - volTop);
+      }
+      for (i = 0; i < pts.length; i++) {
+        p = pts[i];
+        if (!Number.isFinite(p.volume) || p.volume <= 0 || maxV <= 0) continue;
+        x = xOf(p.t);
+        vh = Math.max(1, (p.volume / maxV) * (volBottom - volTop));
+        ctx.fillStyle = volumeFill(barIsUp(pts, i), compact ? 0.92 : 0.9);
+        ctx.fillRect(x - bw / 2, volBottom - vh, bw, vh);
+      }
+    }
+
+    function hideChartReadout() {
+      if (!el.chartReadout) return;
+      el.chartReadout.classList.remove("open");
+      el.chartReadout.innerHTML = "";
+    }
+
+    function showChartReadout(layout, pt, paneX) {
+      if (!el.chartReadout || !el.chartWrap || !pt) {
+        hideChartReadout();
+        return;
+      }
+      var volTxt = Number.isFinite(pt.volume) && pt.volume > 0 ? fmtCompactVol(pt.volume) : "—";
+      el.chartReadout.innerHTML =
+        "<div class=\"ro-time\">" + esc(fmtPT(pt.t, false)) + "</div>" +
+        "<div class=\"ro-px\">" + esc(fmtPrice(pt.close, layout.itemId)) + "</div>" +
+        "<div class=\"ro-vol\">Vol " + esc(volTxt) + "</div>";
+      el.chartReadout.classList.add("open");
+      var wrap = el.chartWrap.getBoundingClientRect();
+      var ro = el.chartReadout.getBoundingClientRect();
+      var left = paneX + 12;
+      var top = (layout.padT || 22) + 8;
+      if (left + ro.width + 8 > wrap.width) left = paneX - ro.width - 12;
+      if (left < 8) left = 8;
+      el.chartReadout.style.left = Math.round(left) + "px";
+      el.chartReadout.style.top = Math.round(top) + "px";
+    }
+
+    function nearestPointIndex(pts, xOf, x) {
+      var best = 0, bestD = Infinity, i, d;
+      for (i = 0; i < pts.length; i++) {
+        d = Math.abs(xOf(pts[i].t) - x);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      return best;
+    }
+
     function drawSpark(canvas, id) {
-      var fit = fitCanvas(canvas, 64);
+      var fit = fitCanvas(canvas, 92);
       var ctx = fit.ctx, w = fit.w, h = fit.h;
       ctx.fillStyle = "#04080d";
       ctx.fillRect(0, 0, w, h);
@@ -1690,18 +1797,44 @@
         ctx.fillText(msg, 8, h / 2 + 3);
         return;
       }
-      var hasVol = pts.some(function (p) { return Number.isFinite(p.volume) && p.volume > 0; });
-      var volH = hasVol ? 14 : 0;
+      var hasVol = pointsHaveVolume(pts);
+      var padL = 3, padR = 3, padT = 5, padB = 3;
+      var inner = h - padT - padB;
+      var priceBottom = hasVol ? padT + inner * 0.70 - 3 : h - padB;
+      var volTop = hasVol ? padT + inner * 0.70 + 3 : 0;
+      var volBottom = h - padB;
       var ys = pts.map(function (p) { return p.close; });
       var yMin = Math.min.apply(null, ys);
       var yMax = Math.max.apply(null, ys);
-      var pad = Math.max((yMax - yMin) * 0.18, Math.abs(yMax) * 0.0008, 0.01);
+      var pad = Math.max((yMax - yMin) * 0.16, Math.abs(yMax) * 0.0008, 0.01);
       yMin -= pad; yMax += pad;
       var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
       if (t1 <= t0) t1 = t0 + 1;
-      function xOf(t) { return 4 + ((t - t0) / (t1 - t0)) * (w - 8); }
-      function yOf(v) { return 5 + (1 - (v - yMin) / (yMax - yMin)) * (h - 10 - volH - (hasVol ? 3 : 0)); }
-      if (hasVol) drawVolumeStrip(ctx, pts, xOf, 4, w - 4, h - 2, volH);
+      function xOf(t) { return padL + ((t - t0) / (t1 - t0)) * (w - padL - padR); }
+      function yOf(v) { return padT + (1 - (v - yMin) / (yMax - yMin)) * (priceBottom - padT); }
+
+      var q = quotes[id];
+      var prev = q && Number.isFinite(q.previousClose) ? q.previousClose : null;
+      if (Number.isFinite(prev) && prev >= yMin && prev <= yMax) {
+        ctx.strokeStyle = "rgba(255,255,255,0.22)";
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, yOf(prev));
+        ctx.lineTo(w - padR, yOf(prev));
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(xOf(pts[0].t), yOf(pts[0].close));
+      pts.forEach(function (p, i) { if (i) ctx.lineTo(xOf(p.t), yOf(p.close)); });
+      ctx.lineTo(xOf(pts[pts.length - 1].t), priceBottom);
+      ctx.lineTo(xOf(pts[0].t), priceBottom);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(0, 220, 255, 0.10)";
+      ctx.fill();
+
       var last = pts[pts.length - 1].close;
       var first = pts[0].close;
       var up = last >= first;
@@ -1717,13 +1850,23 @@
       ctx.shadowBlur = 0;
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(xOf(pts[pts.length - 1].t), yOf(pts[pts.length - 1].close), 2.4, 0, Math.PI * 2);
+      ctx.arc(xOf(pts[pts.length - 1].t), yOf(pts[pts.length - 1].close), 2.2, 0, Math.PI * 2);
       ctx.fill();
+
+      if (hasVol) {
+        ctx.strokeStyle = "rgba(0, 220, 255, 0.28)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, (priceBottom + volTop) / 2);
+        ctx.lineTo(w - padR, (priceBottom + volTop) / 2);
+        ctx.stroke();
+        drawVolumeHistogram(ctx, pts, xOf, volTop, volBottom, maxVolume(pts), { compact: true, w: w, padL: padL, padR: padR });
+      }
     }
 
     function renderFocusChart() {
       var item = findItem(selectedId) || watchlist[0];
-      var fit = fitCanvas(el.chart, 320);
+      var fit = fitCanvas(el.chart, 380);
       var ctx = fit.ctx, w = fit.w, h = fit.h;
       ctx.fillStyle = "#04080d";
       ctx.fillRect(0, 0, w, h);
@@ -1737,6 +1880,8 @@
       if (!item) {
         el.focusTitle.textContent = "Intraday";
         el.chartCaption.textContent = "Add a ticker to see a chart.";
+        hideChartReadout();
+        focusChartLayout = null;
         return;
       }
       el.focusTitle.textContent = "Intraday — " + item.id;
@@ -1752,13 +1897,19 @@
         else if (c && c.loading) lines = ["Loading 5-minute candles…"];
         else lines = ["Waiting for chart data…"];
         var y0 = h / 2 - (lines.length - 1) * 8;
-        lines.forEach(function (line, i) { ctx.fillText(line, 24, y0 + i * 16); });
+        lines.forEach(function (line, i2) { ctx.fillText(line, 24, y0 + i2 * 16); });
         el.chartCaption.textContent = !apiKey ? "Live price still updates without a key. Charts need Twelve Data." : (c && c.error ? c.error : "Queuing Twelve Data candles (8 credits/min).");
+        hideChartReadout();
+        focusChartLayout = null;
         return;
       }
 
-      var hasVol = pts.some(function (p) { return Number.isFinite(p.volume) && p.volume > 0; });
-      var padL = 68, padR = 18, padT = 22, padB = hasVol ? 52 : 32;
+      var hasVol = pointsHaveVolume(pts);
+      var padL = 68, padR = 18, padT = 22, padTime = 24;
+      var innerH = h - padT - padTime;
+      var priceBottom = hasVol ? padT + innerH * 0.70 - 8 : h - padTime;
+      var volTop = hasVol ? padT + innerH * 0.70 + 8 : 0;
+      var volBottom = hasVol ? h - padTime : 0;
       var ys = [];
       pts.forEach(function (p) {
         ys.push(p.close);
@@ -1773,12 +1924,14 @@
       var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
       if (t1 <= t0) t1 = t0 + 1;
       function xOf(t) { return padL + ((t - t0) / (t1 - t0)) * (w - padL - padR); }
-      function yOf(v) { return padT + (1 - (v - yMin) / (yMax - yMin)) * (h - padT - padB); }
+      function yOf(v) { return padT + (1 - (v - yMin) / (yMax - yMin)) * (priceBottom - padT); }
+      var maxV = hasVol ? maxVolume(pts) : 0;
 
       ctx.strokeStyle = "rgba(0, 220, 255, 0.12)";
       ctx.fillStyle = "rgba(170, 220, 230, 0.6)";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
+      ctx.font = "500 10px ui-monospace, SFMono-Regular, Menlo, monospace";
       for (i = 0; i <= 4; i++) {
         var yv = yMin + ((yMax - yMin) * i) / 4;
         var yy = yOf(yv);
@@ -1787,9 +1940,10 @@
       }
       ctx.textAlign = "center";
       ctx.textBaseline = "alphabetic";
-      for (i = 0; i <= 4; i++) {
-        var tt = t0 + ((t1 - t0) * i) / 4;
-        ctx.fillText(fmtPT(tt, false), xOf(tt), h - 10);
+      var axisTicks = w < 500 ? 2 : 4;
+      for (i = 0; i <= axisTicks; i++) {
+        var tt = t0 + ((t1 - t0) * i) / axisTicks;
+        ctx.fillText(fmtAxisPT(tt), xOf(tt), h - 8);
       }
 
       var q = quotes[item.id];
@@ -1801,7 +1955,8 @@
         ctx.setLineDash([]);
         ctx.fillStyle = "rgba(220, 240, 245, 0.75)";
         ctx.textAlign = "left";
-        ctx.fillText("PREV " + fmtPrice(prev, item.id), padL + 6, yOf(prev) - 6);
+        ctx.textBaseline = "bottom";
+        ctx.fillText("PREV " + fmtPrice(prev, item.id), padL + 6, yOf(prev) - 4);
       }
 
       ctx.beginPath();
@@ -1810,6 +1965,15 @@
       for (i = pts.length - 1; i >= 0; i--) ctx.lineTo(xOf(pts[i].t), yOf(Number.isFinite(pts[i].low) ? pts[i].low : pts[i].close));
       ctx.closePath();
       ctx.fillStyle = "rgba(0, 220, 255, 0.09)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(xOf(pts[0].t), yOf(pts[0].close));
+      for (i = 1; i < pts.length; i++) ctx.lineTo(xOf(pts[i].t), yOf(pts[i].close));
+      ctx.lineTo(xOf(pts[pts.length - 1].t), priceBottom);
+      ctx.lineTo(xOf(pts[0].t), priceBottom);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(0, 220, 255, 0.07)";
       ctx.fill();
 
       ctx.beginPath();
@@ -1829,14 +1993,96 @@
       ctx.fill();
 
       if (hasVol) {
-        drawVolumeStrip(ctx, pts, xOf, padL, w - padR, h - 16, 18);
+        ctx.strokeStyle = "rgba(0, 220, 255, 0.35)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, (priceBottom + volTop) / 2);
+        ctx.lineTo(w - padR, (priceBottom + volTop) / 2);
+        ctx.stroke();
+        drawVolumeHistogram(ctx, pts, xOf, volTop, volBottom, maxV, { compact: false, w: w, padL: padL, padR: padR });
+        ctx.fillStyle = "rgba(170, 220, 230, 0.8)";
+        ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "top";
+        ctx.fillText("VOL", padL - 8, volTop + 2);
+        ctx.fillStyle = "rgba(170, 220, 230, 0.58)";
+        ctx.font = "500 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+        ctx.fillText(fmtCompactVol(maxV), padL - 8, volTop + 15);
+      }
+
+      focusChartLayout = {
+        pts: pts, xOf: xOf, yOf: yOf, w: w, h: h, padL: padL, padR: padR, padT: padT,
+        priceBottom: priceBottom, volTop: volTop, volBottom: volBottom, hasVol: hasVol,
+        itemId: item.id, maxV: maxV
+      };
+
+      if (focusHoverIndex != null && pts[focusHoverIndex]) {
+        var hp = pts[focusHoverIndex];
+        var hx = xOf(hp.t);
+        var hy = yOf(hp.close);
+        var hairBottom = hasVol ? volBottom : priceBottom;
+        ctx.save();
+        ctx.strokeStyle = "rgba(232, 251, 255, 0.65)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(hx, padT);
+        ctx.lineTo(hx, hairBottom);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(padL, hy);
+        ctx.lineTo(w - padR, hy);
+        ctx.strokeStyle = "rgba(232, 251, 255, 0.22)";
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#00f0ff";
+        ctx.beginPath();
+        ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+        ctx.fill();
+        if (hasVol && Number.isFinite(hp.volume) && hp.volume > 0 && maxV > 0) {
+          var vh = Math.max(1, (hp.volume / maxV) * (volBottom - volTop));
+          ctx.strokeStyle = "rgba(232, 251, 255, 0.9)";
+          ctx.lineWidth = 1.25;
+          ctx.strokeRect(hx - barWidthFor(pts, xOf) / 2 - 0.5, volBottom - vh - 0.5, barWidthFor(pts, xOf) + 1, vh + 1);
+        }
+        ctx.restore();
+        showChartReadout(focusChartLayout, hp, hx);
+      } else {
+        hideChartReadout();
       }
 
       var n = pts.length;
-      var caption = (c.source || "Intraday") + "  ·  " + n + " pts  ·  " + fmtPT(pts[0].t) + "–" + fmtPT(last.t);
-      if (hasVol) caption += "  ·  volume bars from Twelve Data";
+      var caption = (c.source || "Intraday") + "  ·  " + n + " bars  ·  " + fmtPT(pts[0].t) + "–" + fmtPT(last.t);
+      if (hasVol) caption += "  ·  linked price & volume (Twelve Data 5-min OHLCV)";
       if (c.proxy && c.proxyLabel) caption += "  ·  Chart is " + c.proxyLabel + " (proxy); price on the tile is the official index.";
       el.chartCaption.textContent = caption;
+    }
+
+    function onFocusChartPointer(ev) {
+      if (!focusChartLayout || !focusChartLayout.pts || focusChartLayout.pts.length < 2) return;
+      ev.preventDefault();
+      var rect = el.chart.getBoundingClientRect();
+      var x = ev.clientX - rect.left;
+      var layout = focusChartLayout;
+      var minX = layout.padL, maxX = layout.w - layout.padR;
+      if (x < minX - 8 || x > maxX + 8) {
+        if (focusHoverIndex != null) {
+          focusHoverIndex = null;
+          renderFocusChart();
+        }
+        return;
+      }
+      var idx = nearestPointIndex(layout.pts, layout.xOf, Math.max(minX, Math.min(maxX, x)));
+      if (idx !== focusHoverIndex) {
+        focusHoverIndex = idx;
+        renderFocusChart();
+      }
+    }
+
+    function onFocusChartLeave() {
+      if (focusHoverIndex == null) return;
+      focusHoverIndex = null;
+      renderFocusChart();
     }
 
     function renderCredits() {
@@ -2027,6 +2273,12 @@
         drawSpark(cv, cv.getAttribute("data-spark"));
       });
     });
+    if (el.chart) {
+      el.chart.addEventListener("pointerdown", onFocusChartPointer);
+      el.chart.addEventListener("pointermove", onFocusChartPointer);
+      el.chart.addEventListener("pointerleave", onFocusChartLeave);
+      el.chart.addEventListener("pointercancel", onFocusChartLeave);
+    }
 
     watchlist = loadWatchlist();
     apiKey = loadKey();
@@ -2047,6 +2299,7 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(function () {});
     }
+
   })();
   </script>
 </body>
